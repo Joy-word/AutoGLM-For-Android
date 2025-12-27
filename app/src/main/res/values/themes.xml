@@ -1,0 +1,147 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme - Dark with Blue Accent -->
+    <style name="Base.Theme.AutoGLM" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_variant</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorPrimaryContainer">@color/surface_variant</item>
+        <item name="colorOnPrimaryContainer">@color/primary</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/secondary</item>
+        <item name="colorSecondaryVariant">@color/secondary_variant</item>
+        <item name="colorOnSecondary">@color/on_secondary</item>
+        <item name="colorSecondaryContainer">@color/surface_variant</item>
+        <item name="colorOnSecondaryContainer">@color/secondary</item>
+        
+        <!-- Surface colors -->
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+        
+        <!-- Background -->
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorOnBackground">@color/on_background</item>
+        
+        <!-- Immersive status bar and navigation bar -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        
+        <!-- Outline and divider -->
+        <item name="colorOutline">@color/card_stroke</item>
+        <item name="colorOutlineVariant">@color/divider</item>
+        
+        <!-- Text appearance -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+    </style>
+
+    <style name="Theme.AutoGLM" parent="Base.Theme.AutoGLM" />
+    
+    <!-- Transparent theme for utility activities -->
+    <style name="Theme.Transparent" parent="Theme.AutoGLM">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+    
+    <!-- Card Style -->
+    <style name="Widget.App.CardView" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/card_background</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+    
+    <!-- Primary Button Style - Filled with blue -->
+    <style name="Widget.App.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/button_primary</item>
+        <item name="android:textColor">@color/button_primary_text</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="iconTint">@color/button_primary_text</item>
+    </style>
+    
+    <!-- Secondary Button Style - Outlined -->
+    <style name="Widget.App.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/button_outlined_stroke</item>
+        <item name="android:textColor">@color/button_secondary_text</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="iconTint">@color/button_secondary_text</item>
+    </style>
+    
+    <!-- Text Button Style -->
+    <style name="Widget.App.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/primary</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="iconTint">@color/primary</item>
+    </style>
+    
+    <!-- Tonal Button Style -->
+    <style name="Widget.App.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/surface_variant</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="iconTint">@color/primary</item>
+    </style>
+    
+    <!-- Tonal Button Style - Large (for card buttons) -->
+    <style name="Widget.App.Button.Tonal.Large" parent="Widget.App.Button.Tonal">
+        <item name="android:textSize">16sp</item>
+        <item name="iconSize">24dp</item>
+    </style>
+    
+    <!-- Input Field Style -->
+    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/input_stroke_focused</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="hintTextColor">@color/primary</item>
+        <item name="boxBackgroundColor">@color/input_background</item>
+    </style>
+    
+    <!-- Base Text Appearance -->
+    <style name="TextAppearance.App" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+    
+    <!-- Section Title Style -->
+    <style name="TextAppearance.App.SectionTitle" parent="TextAppearance.App">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    
+    <!-- Card Title Style -->
+    <style name="TextAppearance.App.CardTitle" parent="TextAppearance.App">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    
+    <!-- List Item Title -->
+    <style name="TextAppearance.App.ListTitle" parent="TextAppearance.App">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+    
+    <!-- List Item Subtitle -->
+    <style name="TextAppearance.App.ListSubtitle" parent="TextAppearance.App">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+</resources>

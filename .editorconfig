@@ -1,0 +1,61 @@
+# EditorConfig for AutoGLM Phone Agent
+# https://editorconfig.org
+
+root = true
+
+# Default settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Kotlin files
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# ktlint specific settings
+# Disable wildcard imports
+ktlint_standard_no-wildcard-imports = enabled
+
+# Enforce trailing comma
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_trailing-comma-on-declaration-site = disabled
+
+# Enforce blank line before declarations
+ktlint_standard_blank-line-before-declaration = enabled
+
+# Enforce consistent spacing
+ktlint_standard_spacing-between-declarations-with-annotations = enabled
+ktlint_standard_spacing-between-declarations-with-comments = enabled
+
+# Gradle files
+[*.gradle.kts]
+indent_style = space
+indent_size = 4
+
+# XML files (Android layouts, etc.)
+[*.xml]
+indent_style = space
+indent_size = 4
+
+# JSON files
+[*.json]
+indent_style = space
+indent_size = 2
+
+# YAML files
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Properties files
+[*.properties]
+charset = utf-8
