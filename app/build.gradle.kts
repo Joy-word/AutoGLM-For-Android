@@ -32,8 +32,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            // 不再使用 applicationIdSuffix，与发行版使用相同包名
             resValue("string", "app_name", "AutoGLM Dev")
         }
         release {
@@ -70,19 +69,20 @@ android {
     }
 }
 
-// Copy dev_profiles.json to assets for debug builds
+// Copy dev_profiles.json to assets for debug builds only
 android.applicationVariants.all {
     val variant = this
     if (variant.buildType.name == "debug") {
         val copyDevProfiles = tasks.register("copyDevProfiles${variant.name.replaceFirstChar { it.uppercase() }}") {
             val devProfilesFile = rootProject.file("dev_profiles.json")
-            val assetsDir = file("src/main/assets")
+            // Use debug-specific assets directory to avoid polluting release builds
+            val assetsDir = file("src/debug/assets")
             
             doLast {
                 if (devProfilesFile.exists()) {
                     assetsDir.mkdirs()
                     devProfilesFile.copyTo(File(assetsDir, "dev_profiles.json"), overwrite = true)
-                    println("Copied dev_profiles.json to assets")
+                    println("Copied dev_profiles.json to debug assets")
                 } else {
                     println("dev_profiles.json not found, skipping")
                 }
