@@ -162,7 +162,7 @@ After opening the app, grant the following permissions in order:
 
 Go to "Settings" page and configure the AI model API:
 
-**Recommended Configuration (Zhipu BigModel)**
+**Recommended Configuration (Zhipu BigModel)** 🎉 `autoglm-phone` model is currently FREE!
 
 | Setting  | Value                                                                                   |
 | -------- | --------------------------------------------------------------------------------------- |
