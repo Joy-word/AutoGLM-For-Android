@@ -12,7 +12,6 @@ package com.kevinluo.autoglm.action
  *
  */
 sealed class AgentAction {
-
     /**
      * Tap at specified coordinates.
      *
@@ -20,11 +19,7 @@ sealed class AgentAction {
      * @property y Relative Y coordinate (0-999)
      * @property message Optional message for sensitive operation confirmation
      */
-    data class Tap(
-        val x: Int,
-        val y: Int,
-        val message: String? = null
-    ) : AgentAction()
+    data class Tap(val x: Int, val y: Int, val message: String? = null) : AgentAction()
 
     /**
      * Swipe from start to end coordinates.
@@ -35,13 +30,8 @@ sealed class AgentAction {
      * @property endY Relative end Y coordinate (0-999)
      * @property humanized Whether to use humanized swipe with curved path
      */
-    data class Swipe(
-        val startX: Int,
-        val startY: Int,
-        val endX: Int,
-        val endY: Int,
-        val humanized: Boolean = true
-    ) : AgentAction()
+    data class Swipe(val startX: Int, val startY: Int, val endX: Int, val endY: Int, val humanized: Boolean = true) :
+        AgentAction()
 
     /**
      * Type text into the current input field.
@@ -103,11 +93,7 @@ sealed class AgentAction {
      * @property y Relative Y coordinate (0-999)
      * @property durationMs Duration of the long press in milliseconds
      */
-    data class LongPress(
-        val x: Int,
-        val y: Int,
-        val durationMs: Int = 3000
-    ) : AgentAction()
+    data class LongPress(val x: Int, val y: Int, val durationMs: Int = 3000) : AgentAction()
 
     /**
      * Double tap at specified coordinates.
@@ -115,10 +101,7 @@ sealed class AgentAction {
      * @property x Relative X coordinate (0-999)
      * @property y Relative Y coordinate (0-999)
      */
-    data class DoubleTap(
-        val x: Int,
-        val y: Int
-    ) : AgentAction()
+    data class DoubleTap(val x: Int, val y: Int) : AgentAction()
 
     /**
      * Wait for a specified duration.
@@ -170,39 +153,34 @@ sealed class AgentAction {
      * @property steps List of actions to execute in order
      * @property delayMs Delay between each action in milliseconds (default 500ms)
      */
-    data class Batch(
-        val steps: List<AgentAction>,
-        val delayMs: Int = 500
-    ) : AgentAction()
+    data class Batch(val steps: List<AgentAction>, val delayMs: Int = 500) : AgentAction()
 
     /**
      * Formats the action for display in UI.
      *
      * @return Human-readable description of the action
      */
-    fun formatForDisplay(): String {
-        return when (this) {
-            is Tap -> "点击 ($x, $y)"
-            is Swipe -> "滑动 从($startX, $startY) 到($endX, $endY)"
-            is Type -> "输入: \"${text.take(30)}${if (text.length > 30) "..." else ""}\""
-            is TypeName -> "输入名称: \"$text\""
-            is Launch -> "启动: $app"
-            is ListApps -> "列出已安装应用"
-            is Back -> "返回"
-            is Home -> "主页"
-            is VolumeUp -> "音量+"
-            is VolumeDown -> "音量-"
-            is Power -> "电源键"
-            is LongPress -> "长按 ($x, $y)"
-            is DoubleTap -> "双击 ($x, $y)"
-            is Wait -> "等待 ${durationSeconds}秒"
-            is TakeOver -> "手动接管"
-            is Interact -> "用户交互"
-            is Note -> "备注: ${message.take(30)}${if (message.length > 30) "..." else ""}"
-            is CallApi -> "API调用"
-            is Finish -> "完成: ${message.take(30)}${if (message.length > 30) "..." else ""}"
-            is Batch -> "批量操作: ${steps.size}步 (间隔${delayMs}ms)"
-        }
+    fun formatForDisplay(): String = when (this) {
+        is Tap -> "点击 ($x, $y)"
+        is Swipe -> "滑动 从($startX, $startY) 到($endX, $endY)"
+        is Type -> "输入: \"${text.take(30)}${if (text.length > 30) "..." else ""}\""
+        is TypeName -> "输入名称: \"$text\""
+        is Launch -> "启动: $app"
+        is ListApps -> "列出已安装应用"
+        is Back -> "返回"
+        is Home -> "主页"
+        is VolumeUp -> "音量+"
+        is VolumeDown -> "音量-"
+        is Power -> "电源键"
+        is LongPress -> "长按 ($x, $y)"
+        is DoubleTap -> "双击 ($x, $y)"
+        is Wait -> "等待 ${durationSeconds}秒"
+        is TakeOver -> "手动接管"
+        is Interact -> "用户交互"
+        is Note -> "备注: ${message.take(30)}${if (message.length > 30) "..." else ""}"
+        is CallApi -> "API调用"
+        is Finish -> "完成: ${message.take(30)}${if (message.length > 30) "..." else ""}"
+        is Batch -> "批量操作: ${steps.size}步 (间隔${delayMs}ms)"
     }
 }
 
@@ -218,5 +196,5 @@ data class ActionResult(
     val success: Boolean,
     val shouldFinish: Boolean,
     val message: String? = null,
-    val refreshFloatingWindow: Boolean = false
+    val refreshFloatingWindow: Boolean = false,
 )

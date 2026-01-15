@@ -27,7 +27,6 @@ import kotlinx.coroutines.withContext
  *
  */
 class DeviceExecutor(private val userService: IUserService) {
-    
     /**
      * Performs a tap at the specified absolute coordinates.
      *
@@ -61,7 +60,6 @@ class DeviceExecutor(private val userService: IUserService) {
         "$result1\n$result2"
     }
 
-    
     /**
      * Performs a long press at the specified absolute coordinates.
      *
@@ -128,12 +126,12 @@ class DeviceExecutor(private val userService: IUserService) {
 
         // Touch down at first point
         val first = points.first()
-        commands.appendLine("sendevent $devicePath 3 57 0")      // ABS_MT_TRACKING_ID = 0
+        commands.appendLine("sendevent $devicePath 3 57 0") // ABS_MT_TRACKING_ID = 0
         commands.appendLine("sendevent $devicePath 3 53 ${first.x}") // ABS_MT_POSITION_X
         commands.appendLine("sendevent $devicePath 3 54 ${first.y}") // ABS_MT_POSITION_Y
-        commands.appendLine("sendevent $devicePath 3 58 50")     // ABS_MT_PRESSURE
-        commands.appendLine("sendevent $devicePath 3 48 5")      // ABS_MT_TOUCH_MAJOR
-        commands.appendLine("sendevent $devicePath 0 0 0")       // SYN_REPORT
+        commands.appendLine("sendevent $devicePath 3 58 50") // ABS_MT_PRESSURE
+        commands.appendLine("sendevent $devicePath 3 48 5") // ABS_MT_TOUCH_MAJOR
+        commands.appendLine("sendevent $devicePath 0 0 0") // SYN_REPORT
 
         // Move through intermediate points
         for (i in 1 until points.size - 1) {
@@ -152,8 +150,8 @@ class DeviceExecutor(private val userService: IUserService) {
         commands.appendLine("sendevent $devicePath 0 0 0")
 
         // Touch up
-        commands.appendLine("sendevent $devicePath 3 57 -1")     // ABS_MT_TRACKING_ID = -1 (lift)
-        commands.appendLine("sendevent $devicePath 0 0 0")       // SYN_REPORT
+        commands.appendLine("sendevent $devicePath 3 57 -1") // ABS_MT_TRACKING_ID = -1 (lift)
+        commands.appendLine("sendevent $devicePath 0 0 0") // SYN_REPORT
 
         // Execute as a shell script
         val script = commands.toString()
@@ -185,9 +183,11 @@ class DeviceExecutor(private val userService: IUserService) {
         cachedTouchDevice?.let { return it }
 
         // Find touch device from /dev/input/
-        val result = executeCommand(
-            "getevent -pl 2>/dev/null | grep -B5 'ABS_MT_POSITION' | grep 'add device' | head -1 | awk '{print \$3}'"
-        )
+        val geteventCmd =
+            "getevent -pl 2>/dev/null | " +
+                "grep -B5 'ABS_MT_POSITION' | " +
+                "grep 'add device' | head -1 | awk '{print \$3}'"
+        val result = executeCommand(geteventCmd)
         val device = result.trim().substringBefore("[").trim()
 
         if (device.startsWith("/dev/input/")) {
@@ -196,11 +196,12 @@ class DeviceExecutor(private val userService: IUserService) {
         }
 
         // Fallback: try common device paths
-        val commonPaths = listOf(
-            "/dev/input/event1",
-            "/dev/input/event2",
-            "/dev/input/event0"
-        )
+        val commonPaths =
+            listOf(
+                "/dev/input/event1",
+                "/dev/input/event2",
+                "/dev/input/event0",
+            )
 
         for (path in commonPaths) {
             val testResult = executeCommand("test -e $path && echo exists")
@@ -212,7 +213,7 @@ class DeviceExecutor(private val userService: IUserService) {
 
         return null
     }
-    
+
     /**
      * Presses a key by its keycode.
      *
@@ -238,25 +239,32 @@ class DeviceExecutor(private val userService: IUserService) {
      */
     suspend fun launchApp(packageName: String): String = withContext(Dispatchers.IO) {
         // First, try to resolve the launcher activity
-        val resolveResult = executeCommand(
-            "pm resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $packageName"
-        )
+        val resolveCmd =
+            "pm resolve-activity --brief " +
+                "-a android.intent.action.MAIN " +
+                "-c android.intent.category.LAUNCHER $packageName"
+        val resolveResult = executeCommand(resolveCmd)
         Logger.d(TAG, "Resolve activity result: $resolveResult")
 
         // Parse the component name from the result (format: "package/activity")
-        val componentName = resolveResult.lines()
-            .firstOrNull { it.contains("/") && it.contains(packageName) }
-            ?.trim()
+        val componentName =
+            resolveResult
+                .lines()
+                .firstOrNull { it.contains("/") && it.contains(packageName) }
+                ?.trim()
 
-        val result = if (componentName != null && componentName.isNotBlank()) {
-            // Launch with specific component
-            Logger.d(TAG, "Launching with component: $componentName")
-            executeCommand("am start -n $componentName")
-        } else {
-            // Fallback to package-only launch
-            Logger.d(TAG, "Launching with package only: $packageName")
-            executeCommand("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p $packageName")
-        }
+        val result =
+            if (componentName != null && componentName.isNotBlank()) {
+                // Launch with specific component
+                Logger.d(TAG, "Launching with component: $componentName")
+                executeCommand("am start -n $componentName")
+            } else {
+                // Fallback to package-only launch
+                Logger.d(TAG, "Launching with package only: $packageName")
+                executeCommand(
+                    "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p $packageName",
+                )
+            }
 
         Logger.d(TAG, "Launch app result: $result")
         result
@@ -290,11 +298,12 @@ class DeviceExecutor(private val userService: IUserService) {
         // mCurrentFocus=Window{...com.example.app/com.example.app.MainActivity...}
         // mFocusedApp=ActivityRecord{...com.example.app/.MainActivity...}
 
-        val patterns = listOf(
-            Regex("""mCurrentFocus=Window\{[^}]*\s+([a-zA-Z0-9_.]+)/"""),
-            Regex("""mFocusedApp=.*ActivityRecord\{[^}]*\s+([a-zA-Z0-9_.]+)/"""),
-            Regex("""mFocusedApp=.*\s+([a-zA-Z0-9_.]+)/""")
-        )
+        val patterns =
+            listOf(
+                Regex("""mCurrentFocus=Window\{[^}]*\s+([a-zA-Z0-9_.]+)/"""),
+                Regex("""mFocusedApp=.*ActivityRecord\{[^}]*\s+([a-zA-Z0-9_.]+)/"""),
+                Regex("""mFocusedApp=.*\s+([a-zA-Z0-9_.]+)/"""),
+            )
 
         for (pattern in patterns) {
             val match = pattern.find(dumpsysOutput)
@@ -312,13 +321,11 @@ class DeviceExecutor(private val userService: IUserService) {
      * @param command The shell command to execute
      * @return The command output, or an error message if execution fails
      */
-    private fun executeCommand(command: String): String {
-        return try {
-            userService.executeCommand(command)
-        } catch (e: Exception) {
-            Logger.e(TAG, "Error executing command: $command", e)
-            "Error executing command: ${e.message}"
-        }
+    private fun executeCommand(command: String): String = try {
+        userService.executeCommand(command)
+    } catch (e: Exception) {
+        Logger.e(TAG, "Error executing command: $command", e)
+        "Error executing command: ${e.message}"
     }
 
     /**
@@ -329,9 +336,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @param keyCode The Android KeyEvent keycode
      * @return The shell command string
      */
-    fun generateKeyPressCommand(keyCode: Int): String {
-        return "input keyevent $keyCode"
-    }
+    fun generateKeyPressCommand(keyCode: Int): String = "input keyevent $keyCode"
 
     /**
      * Generates the shell command for a long press action.
@@ -343,9 +348,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @param durationMs Duration in milliseconds
      * @return The shell command string
      */
-    fun generateLongPressCommand(x: Int, y: Int, durationMs: Int): String {
-        return "input swipe $x $y $x $y $durationMs"
-    }
+    fun generateLongPressCommand(x: Int, y: Int, durationMs: Int): String = "input swipe $x $y $x $y $durationMs"
 
     /**
      * Generates the shell commands for a double tap action.
@@ -356,12 +359,10 @@ class DeviceExecutor(private val userService: IUserService) {
      * @param y Absolute Y coordinate
      * @return List of shell command strings
      */
-    fun generateDoubleTapCommands(x: Int, y: Int): List<String> {
-        return listOf(
-            "input tap $x $y",
-            "input tap $x $y"
-        )
-    }
+    fun generateDoubleTapCommands(x: Int, y: Int): List<String> = listOf(
+        "input tap $x $y",
+        "input tap $x $y",
+    )
 
     /**
      * Gets the interval between double tap commands in milliseconds.
@@ -374,18 +375,25 @@ class DeviceExecutor(private val userService: IUserService) {
         private const val TAG = "DeviceExecutor"
 
         // Android KeyEvent keycodes
+
         /** Back button keycode. */
         const val KEYCODE_BACK = 4
+
         /** Home button keycode. */
         const val KEYCODE_HOME = 3
+
         /** Volume up button keycode. */
         const val KEYCODE_VOLUME_UP = 24
+
         /** Volume down button keycode. */
         const val KEYCODE_VOLUME_DOWN = 25
+
         /** Power button keycode. */
         const val KEYCODE_POWER = 26
+
         /** Enter key keycode. */
         const val KEYCODE_ENTER = 66
+
         /** Delete/backspace key keycode. */
         const val KEYCODE_DEL = 67
 

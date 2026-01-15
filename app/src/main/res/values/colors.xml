@@ -11,9 +11,9 @@
     <color name="on_primary">#FF1A1A1A</color>
     
     <!-- Secondary Colors -->
-    <color name="secondary">#FF7BA4DB</color>
-    <color name="secondary_variant">#FF5A8ACF</color>
-    <color name="on_secondary">#FF1A1A1A</color>
+    <color name="secondary">@color/primary</color>
+    <color name="secondary_variant">@color/primary_dark</color>
+    <color name="on_secondary">@color/on_primary</color>
     
     <!-- Dark Surface Colors -->
     <color name="background">#FF121212</color>
@@ -38,7 +38,7 @@
     
     <!-- Status Colors -->
     <color name="status_idle">#FF666666</color>
-    <color name="status_running">#FF7BA4DB</color>
+    <color name="status_running">@color/primary</color>
     <color name="status_paused">#FFFFB74D</color>
     <color name="status_completed">#FF81C784</color>
     <color name="status_failed">#FFEF5350</color>
@@ -49,7 +49,7 @@
     <!-- Dialog Colors -->
     <color name="dialog_background">#FF1E1E1E</color>
     <color name="dialog_surface">#FF252525</color>
-    <color name="dialog_button_confirm">#FF7BA4DB</color>
+    <color name="dialog_button_confirm">@color/primary</color>
     <color name="dialog_button_cancel">#FF888888</color>
     
     <!-- Log Background -->
@@ -62,11 +62,11 @@
     <color name="input_stroke_focused">#FF7BA4DB</color>
     
     <!-- Button Colors -->
-    <color name="button_primary">#FF7BA4DB</color>
-    <color name="button_primary_text">#FF1A1A1A</color>
+    <color name="button_primary">@color/primary</color>
+    <color name="button_primary_text">@color/on_primary</color>
     <color name="button_secondary">#FF2A2A2A</color>
-    <color name="button_secondary_text">#FF7BA4DB</color>
-    <color name="button_outlined_stroke">#FF7BA4DB</color>
+    <color name="button_secondary_text">@color/primary</color>
+    <color name="button_outlined_stroke">@color/primary</color>
     
     <!-- Text Colors -->
     <color name="text_primary">#FFFFFFFF</color>
@@ -74,7 +74,7 @@
     <color name="text_hint">#FF707070</color>
     
     <!-- Icon Colors -->
-    <color name="icon_primary">#FF7BA4DB</color>
+    <color name="icon_primary">@color/primary</color>
     <color name="icon_secondary">#FF888888</color>
     <color name="icon_tertiary">#FFAAAAAA</color>
     

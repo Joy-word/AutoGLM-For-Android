@@ -5,11 +5,11 @@ import android.app.Application
 import android.os.Bundle
 import com.kevinluo.autoglm.config.SystemPrompts
 import com.kevinluo.autoglm.settings.SettingsManager
-import com.kevinluo.autoglm.ui.FloatingWindowService
+import com.kevinluo.autoglm.task.TaskExecutionManager
+import com.kevinluo.autoglm.ui.FloatingWindowStateManager
 import com.kevinluo.autoglm.util.KeepAliveManager
 import com.kevinluo.autoglm.util.LogFileManager
 import com.kevinluo.autoglm.util.Logger
-import com.kevinluo.autoglm.util.ServiceStateManager
 
 /**
  * Application class that manages app-wide lifecycle events.
@@ -24,7 +24,6 @@ import com.kevinluo.autoglm.util.ServiceStateManager
  *
  */
 class AutoGLMApplication : Application() {
-
     /**
      * Counter tracking the number of started (visible) activities.
      * When this reaches 0, the app is considered to be in the background.
@@ -42,56 +41,57 @@ class AutoGLMApplication : Application() {
 
         // Load custom system prompts if set
         loadCustomSystemPrompts()
-        
+
         // 初始化保活状态
         KeepAliveManager.syncFixState(this)
 
-        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-                // No action needed
-            }
+        // Initialize TaskExecutionManager (after ComponentManager is available)
+        TaskExecutionManager.initialize(this)
 
-            override fun onActivityStarted(activity: Activity) {
-                activityCount++
-                Logger.d(TAG, "Activity started: ${activity.localClassName}, count: $activityCount")
-
-                // App came to foreground - hide floating window
-                if (activityCount == 1) {
-                    Logger.d(TAG, "App in foreground - hiding floating window")
-                    FloatingWindowService.getInstance()?.hide()
+        registerActivityLifecycleCallbacks(
+            object : ActivityLifecycleCallbacks {
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                    // No action needed
                 }
-            }
 
-            override fun onActivityResumed(activity: Activity) {
-                // 同步修复状态
-                KeepAliveManager.syncFixState(this@AutoGLMApplication)
-            }
+                override fun onActivityStarted(activity: Activity) {
+                    activityCount++
+                    Logger.d(TAG, "Activity started: ${activity.localClassName}, count: $activityCount")
 
-            override fun onActivityPaused(activity: Activity) {
-                // No action needed
-            }
-
-            override fun onActivityStopped(activity: Activity) {
-                activityCount--
-                Logger.d(TAG, "Activity stopped: ${activity.localClassName}, count: $activityCount")
-
-                // App went to background - show floating window if enabled
-                if (activityCount == 0) {
-                    Logger.d(TAG, "App in background - checking floating window state")
-                    if (ServiceStateManager.isFloatingWindowEnabled(this@AutoGLMApplication)) {
-                        FloatingWindowService.getInstance()?.show()
+                    // App came to foreground
+                    if (activityCount == 1) {
+                        FloatingWindowStateManager.onAppForeground()
                     }
                 }
-            }
 
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
-                // No action needed
-            }
+                override fun onActivityResumed(activity: Activity) {
+                    // 同步修复状态
+                    KeepAliveManager.syncFixState(this@AutoGLMApplication)
+                }
 
-            override fun onActivityDestroyed(activity: Activity) {
-                // No action needed
-            }
-        })
+                override fun onActivityPaused(activity: Activity) {
+                    // No action needed
+                }
+
+                override fun onActivityStopped(activity: Activity) {
+                    activityCount--
+                    Logger.d(TAG, "Activity stopped: ${activity.localClassName}, count: $activityCount")
+
+                    // App went to background
+                    if (activityCount == 0) {
+                        FloatingWindowStateManager.onAppBackground(this@AutoGLMApplication)
+                    }
+                }
+
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
+                    // No action needed
+                }
+
+                override fun onActivityDestroyed(activity: Activity) {
+                    // No action needed
+                }
+            },
+        )
     }
 
     /**
@@ -101,7 +101,7 @@ class AutoGLMApplication : Application() {
      * and applies them to the SystemPrompts configuration.
      */
     private fun loadCustomSystemPrompts() {
-        val settingsManager = SettingsManager(this)
+        val settingsManager = SettingsManager.getInstance(this)
 
         settingsManager.getCustomSystemPrompt("cn")?.let { prompt ->
             SystemPrompts.setCustomChinesePrompt(prompt)
@@ -121,13 +121,13 @@ class AutoGLMApplication : Application() {
      * The dev_profiles.json file is only included in debug builds.
      */
     private fun importDevProfilesIfNeeded() {
-        val settingsManager = SettingsManager(this)
-        
+        val settingsManager = SettingsManager.getInstance(this)
+
         // Skip if already imported
         if (settingsManager.hasImportedDevProfiles()) {
             return
         }
-        
+
         try {
             val json = assets.open("dev_profiles.json").bufferedReader().readText()
             val count = settingsManager.importDevProfiles(json)

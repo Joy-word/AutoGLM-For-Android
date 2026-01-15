@@ -23,7 +23,6 @@ import com.kevinluo.autoglm.util.Logger
  * @property packageManager The Android PackageManager for querying installed apps
  */
 class AppResolver(private val packageManager: PackageManager) {
-
     /**
      * Resolves an app name to its package name using fuzzy matching.
      *
@@ -92,7 +91,7 @@ class AppResolver(private val packageManager: PackageManager) {
 
         return bestMatch?.packageName
     }
-    
+
     /**
      * Returns all installed launchable applications.
      *
@@ -104,24 +103,26 @@ class AppResolver(private val packageManager: PackageManager) {
      *
      */
     fun getAllLaunchableApps(): List<AppInfo> {
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        
+        val intent =
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+
         val resolveInfoList: List<ResolveInfo> = packageManager.queryIntentActivities(intent, 0)
-        
-        return resolveInfoList.mapNotNull { resolveInfo ->
-            val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
-            val displayName = resolveInfo.loadLabel(packageManager)?.toString() ?: return@mapNotNull null
-            val packageName = activityInfo.packageName ?: return@mapNotNull null
-            
-            AppInfo(
-                displayName = displayName,
-                packageName = packageName
-            )
-        }.distinctBy { it.packageName }
+
+        return resolveInfoList
+            .mapNotNull { resolveInfo ->
+                val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
+                val displayName = resolveInfo.loadLabel(packageManager)?.toString() ?: return@mapNotNull null
+                val packageName = activityInfo.packageName ?: return@mapNotNull null
+
+                AppInfo(
+                    displayName = displayName,
+                    packageName = packageName,
+                )
+            }.distinctBy { it.packageName }
     }
-    
+
     /**
      * Searches for apps matching the given query.
      *
@@ -136,17 +137,17 @@ class AppResolver(private val packageManager: PackageManager) {
         if (query.isBlank()) {
             return emptyList()
         }
-        
+
         val normalizedQuery = query.lowercase().trim()
         val apps = getAllLaunchableApps()
-        
+
         return apps
             .map { app -> app to calculateSimilarity(normalizedQuery, app.displayName.lowercase()) }
             .filter { (_, score) -> score >= MIN_SIMILARITY_THRESHOLD }
             .sortedByDescending { (_, score) -> score }
             .map { (app, _) -> app }
     }
-    
+
     /**
      * Calculates the similarity between two strings.
      *
@@ -166,41 +167,41 @@ class AppResolver(private val packageManager: PackageManager) {
         if (query == target) {
             return 1.0
         }
-        
+
         // Target contains query exactly
         if (target.contains(query)) {
             // Score based on how much of the target is covered by the query
             val coverageScore = query.length.toDouble() / target.length
             return 0.8 + (coverageScore * 0.15) // Range: 0.8 to 0.95
         }
-        
+
         // Target starts with query
         if (target.startsWith(query)) {
             val coverageScore = query.length.toDouble() / target.length
             return 0.75 + (coverageScore * 0.15) // Range: 0.75 to 0.9
         }
-        
+
         // Query starts with target (e.g., query="wechat app" target="wechat")
         if (query.startsWith(target)) {
             val coverageScore = target.length.toDouble() / query.length
             return 0.7 + (coverageScore * 0.15) // Range: 0.7 to 0.85
         }
-        
+
         // Fuzzy matching using Levenshtein distance
         val distance = levenshteinDistance(query, target)
         val maxLength = maxOf(query.length, target.length)
-        
+
         if (maxLength == 0) {
             return 0.0
         }
-        
+
         // Convert distance to similarity score
         val similarity = 1.0 - (distance.toDouble() / maxLength)
-        
+
         // Scale down fuzzy matches to be below exact/contains matches
         return similarity * 0.7
     }
-    
+
     /**
      * Calculates the Levenshtein distance between two strings.
      *
@@ -237,11 +238,15 @@ class AppResolver(private val packageManager: PackageManager) {
         for (i in 1..m) {
             for (j in 1..n) {
                 val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
-                dp[i][j] = minOf(
-                    dp[i - 1][j] + 1,      // Deletion
-                    dp[i][j - 1] + 1,      // Insertion
-                    dp[i - 1][j - 1] + cost // Substitution
-                )
+                dp[i][j] =
+                    minOf(
+                        // Deletion
+                        dp[i - 1][j] + 1,
+                        // Insertion
+                        dp[i][j - 1] + 1,
+                        // Substitution
+                        dp[i - 1][j - 1] + cost,
+                    )
             }
         }
 

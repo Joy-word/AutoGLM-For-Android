@@ -19,6 +19,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -27,6 +28,8 @@ import com.kevinluo.autoglm.MainActivity
 import com.kevinluo.autoglm.R
 import com.kevinluo.autoglm.action.AgentAction
 import com.kevinluo.autoglm.screenshot.FloatingWindowController
+import com.kevinluo.autoglm.task.TaskExecutionManager
+import com.kevinluo.autoglm.task.TaskStep
 import com.kevinluo.autoglm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,18 +48,24 @@ import java.util.concurrent.atomic.AtomicBoolean
 enum class TaskStatus {
     /** No task is currently running. */
     IDLE,
+
     /** A task is actively being executed. */
     RUNNING,
+
     /** Task execution has been paused by the user. */
     PAUSED,
+
     /** Task has completed successfully. */
     COMPLETED,
+
     /** Task has failed due to an error. */
     FAILED,
+
     /** Waiting for user confirmation to proceed. */
     WAITING_CONFIRMATION,
+
     /** Waiting for user to take over control. */
-    WAITING_TAKEOVER
+    WAITING_TAKEOVER,
 }
 
 /**
@@ -67,11 +76,7 @@ enum class TaskStatus {
  * @property action The action being performed in this step
  *
  */
-data class FloatingStep(
-    val stepNumber: Int,
-    val thinking: String,
-    val action: String
-)
+data class FloatingStep(val stepNumber: Int, val thinking: String, val action: String)
 
 /**
  * Foreground service that manages the floating window overlay for task execution.
@@ -87,8 +92,9 @@ data class FloatingStep(
  * the window visibility.
  *
  */
-class FloatingWindowService : Service(), FloatingWindowController {
-
+class FloatingWindowService :
+    Service(),
+    FloatingWindowController {
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
@@ -98,12 +104,6 @@ class FloatingWindowService : Service(), FloatingWindowController {
     private var currentStepNumber = 0
     private var currentStatus = TaskStatus.IDLE
 
-    private var stopTaskCallback: (() -> Unit)? = null
-    private var startTaskCallback: ((String) -> Unit)? = null
-    private var resetAgentCallback: (() -> Unit)? = null
-    private var pauseTaskCallback: (() -> Unit)? = null
-    private var resumeTaskCallback: (() -> Unit)? = null
-    
     // Coroutine scope for UI operations - uses SupervisorJob so child failures don't cancel siblings
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -126,10 +126,11 @@ class FloatingWindowService : Service(), FloatingWindowController {
         fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
 
         fun requestOverlayPermission(context: Context) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                android.net.Uri.parse("package:${context.packageName}")
-            )
+            val intent =
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:${context.packageName}"),
+                )
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         }
@@ -140,12 +141,122 @@ class FloatingWindowService : Service(), FloatingWindowController {
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         Logger.d(TAG, "Service created")
+        observeTaskState()
+    }
+
+    /**
+     * Observes TaskExecutionManager state flows and updates UI accordingly.
+     *
+     * Starts coroutines to observe taskState and steps StateFlows.
+     * These coroutines are cancelled in onDestroy when serviceScope is cancelled.
+     */
+    private fun observeTaskState() {
+        // Observe task state changes
+        serviceScope.launch {
+            TaskExecutionManager.taskState.collect { state ->
+                Logger.d(TAG, "TaskState changed: status=${state.status}, step=${state.stepNumber}")
+                updateUIFromTaskState(state)
+            }
+        }
+
+        // Observe steps changes
+        serviceScope.launch {
+            TaskExecutionManager.steps.collect { steps ->
+                Logger.d(TAG, "Steps changed: count=${steps.size}")
+                updateStepsFromTaskManager(steps)
+            }
+        }
+    }
+
+    /**
+     * Updates the UI based on TaskExecutionState from TaskExecutionManager.
+     *
+     * @param state The current task execution state
+     */
+    private fun updateUIFromTaskState(state: com.kevinluo.autoglm.task.TaskExecutionState) {
+        // Update status
+        if (currentStatus != state.status) {
+            currentStatus = state.status
+            updateStatusIndicator(state.status)
+            updateUIForStatus(state.status)
+        }
+
+        // Update step number
+        if (currentStepNumber != state.stepNumber) {
+            currentStepNumber = state.stepNumber
+            floatingView?.findViewById<TextView>(R.id.tv_step_counter)?.text =
+                getString(R.string.step_counter_format, state.stepNumber)
+        }
+
+        // Update result message for completed/failed states
+        if (state.status == TaskStatus.COMPLETED || state.status == TaskStatus.FAILED) {
+            showResult(state.resultMessage, state.status == TaskStatus.COMPLETED)
+        }
+    }
+
+    /**
+     * Updates the status indicator UI elements.
+     *
+     * @param status The current task status
+     */
+    private fun updateStatusIndicator(status: TaskStatus) {
+        floatingView?.let { view ->
+            val statusText = view.findViewById<TextView>(R.id.tv_status)
+            val indicator = view.findViewById<View>(R.id.status_indicator)
+
+            val (textRes, colorRes) =
+                when (status) {
+                    TaskStatus.IDLE -> R.string.task_status_idle to R.color.status_idle
+                    TaskStatus.RUNNING -> R.string.task_status_running to R.color.status_running
+                    TaskStatus.PAUSED -> R.string.task_status_paused to R.color.status_paused
+                    TaskStatus.COMPLETED -> R.string.task_status_completed to R.color.status_completed
+                    TaskStatus.FAILED -> R.string.task_status_failed to R.color.status_failed
+                    TaskStatus.WAITING_CONFIRMATION -> R.string.floating_waiting_confirm to R.color.status_waiting
+                    TaskStatus.WAITING_TAKEOVER -> R.string.takeover_title to R.color.status_waiting
+                }
+
+            statusText?.text = getString(textRes)
+            indicator?.let {
+                val drawable =
+                    (it.background as? GradientDrawable)
+                        ?: GradientDrawable().also { d -> it.background = d }
+                drawable.shape = GradientDrawable.OVAL
+                drawable.setColor(ContextCompat.getColor(this@FloatingWindowService, colorRes))
+            }
+        }
+    }
+
+    /**
+     * Updates the steps list from TaskExecutionManager.
+     *
+     * @param steps The list of task steps from TaskExecutionManager
+     */
+    private fun updateStepsFromTaskManager(steps: List<TaskStep>) {
+        // Clear and rebuild the local steps list
+        stepsList.clear()
+        steps.forEach { step ->
+            stepsList.add(
+                FloatingStep(
+                    stepNumber = step.stepNumber,
+                    thinking = step.thinking,
+                    action = step.action,
+                ),
+            )
+        }
+        stepsAdapter?.notifyDataSetChanged()
+
+        // Scroll to bottom if there are steps
+        if (stepsList.isNotEmpty()) {
+            floatingView?.findViewById<RecyclerView>(R.id.steps_recycler_view)?.let { rv ->
+                rv.scrollToPosition(stepsList.size - 1)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 不再使用前台服务，悬浮窗本身就能保持显示
         // 如果需要保活，依赖 ContinuousListeningService 的前台通知
-        
+
         // Only create the window view, don't show it automatically
         // Window will be shown when show() is called explicitly
         if (floatingView == null && canDrawOverlays(this)) {
@@ -162,10 +273,6 @@ class FloatingWindowService : Service(), FloatingWindowController {
         instance = null
         // Cancel all coroutines
         serviceScope.cancel()
-        // Clear callbacks to prevent memory leaks
-        stopTaskCallback = null
-        startTaskCallback = null
-        resetAgentCallback = null
         removeWindow()
         super.onDestroy()
     }
@@ -188,7 +295,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
             }
         }
     }
-    
+
     /**
      * Clears input focus and hides keyboard.
      *
@@ -196,20 +303,20 @@ class FloatingWindowService : Service(), FloatingWindowController {
      */
     private fun clearInputFocus() {
         val taskInput = floatingView?.findViewById<EditText>(R.id.task_input) ?: return
-        
+
         if (!taskInput.hasFocus()) {
             return
         }
-        
+
         Logger.d(TAG, "clearInputFocus: clearing focus and hiding keyboard")
-        
+
         // Hide keyboard first
         val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(taskInput.windowToken, 0)
-        
+
         // Clear focus
         taskInput.clearFocus()
-        
+
         // Add FLAG_NOT_FOCUSABLE so back key works in other apps
         layoutParams?.let { params ->
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -233,12 +340,12 @@ class FloatingWindowService : Service(), FloatingWindowController {
     override fun show() {
         serviceScope.launch {
             Logger.d(TAG, "show() called, isAttached=${isAttached.get()}, floatingView=${floatingView != null}")
-            
+
             // Create window view if not created yet
             if (floatingView == null) {
                 createWindowView()
             }
-            
+
             if (!isAttached.get() && floatingView != null) {
                 addWindowInternal()
             }
@@ -256,12 +363,12 @@ class FloatingWindowService : Service(), FloatingWindowController {
             val attached = isAttached.get()
             val hasView = floatingView != null
             Logger.d(TAG, "showAndBringToFront() called, isAttached=$attached, floatingView=$hasView")
-            
+
             // Create window view if not created yet
             if (floatingView == null) {
                 createWindowView()
             }
-            
+
             if (floatingView != null) {
                 if (isAttached.get()) {
                     removeWindowInternal()
@@ -282,26 +389,6 @@ class FloatingWindowService : Service(), FloatingWindowController {
     // ==================== Public Methods ====================
 
     /**
-     * Sets the callback for starting a task from the floating window.
-     *
-     * @param callback Function to be called with the task description when user starts a task
-     *
-     */
-    fun setStartTaskCallback(callback: (String) -> Unit) {
-        startTaskCallback = callback
-    }
-    
-    /**
-     * Sets the callback for resetting the agent before starting a new task.
-     *
-     * @param callback Function to be called to reset the agent state
-     *
-     */
-    fun setResetAgentCallback(callback: () -> Unit) {
-        resetAgentCallback = callback
-    }
-
-    /**
      * Adds a new step to the waterfall display.
      *
      * @param stepNumber The sequential number of this step
@@ -311,11 +398,12 @@ class FloatingWindowService : Service(), FloatingWindowController {
      */
     fun addStep(stepNumber: Int, thinking: String, action: AgentAction?) {
         serviceScope.launch {
-            val step = FloatingStep(
-                stepNumber = stepNumber,
-                thinking = thinking,
-                action = action?.formatForDisplay() ?: "无"
-            )
+            val step =
+                FloatingStep(
+                    stepNumber = stepNumber,
+                    thinking = thinking,
+                    action = action?.formatForDisplay() ?: "无",
+                )
             stepsList.add(step)
             stepsAdapter?.notifyItemInserted(stepsList.size - 1)
 
@@ -366,15 +454,17 @@ class FloatingWindowService : Service(), FloatingWindowController {
     /**
      * Updates the task status and refreshes the UI accordingly.
      *
-     * @param status The new task status to display
+     * This method is private to ensure all status changes go through StateFlow.
+     * Only used internally by showConfirmation/showTakeOver/showInteract for temporary states.
      *
+     * @param status The new task status to display
      */
-    fun updateStatus(status: TaskStatus) {
+    private fun updateStatus(status: TaskStatus) {
         Logger.d(TAG, "updateStatus called with status: $status")
         serviceScope.launch {
             Logger.d(TAG, "updateStatus serviceScope.launch executing, status: $status, floatingView: $floatingView")
             currentStatus = status
-            
+
             // If switching to RUNNING, clear previous steps
             if (status == TaskStatus.RUNNING) {
                 stepsList.clear()
@@ -386,25 +476,27 @@ class FloatingWindowService : Service(), FloatingWindowController {
                         getString(R.string.step_counter_default)
                 }
             }
-            
+
             floatingView?.let { view ->
                 val statusText = view.findViewById<TextView>(R.id.tv_status)
                 val indicator = view.findViewById<View>(R.id.status_indicator)
 
-                val (textRes, colorRes) = when (status) {
-                    TaskStatus.IDLE -> R.string.task_status_idle to R.color.status_idle
-                    TaskStatus.RUNNING -> R.string.task_status_running to R.color.status_running
-                    TaskStatus.PAUSED -> R.string.task_status_paused to R.color.status_paused
-                    TaskStatus.COMPLETED -> R.string.task_status_completed to R.color.status_completed
-                    TaskStatus.FAILED -> R.string.task_status_failed to R.color.status_failed
-                    TaskStatus.WAITING_CONFIRMATION -> R.string.floating_waiting_confirm to R.color.status_waiting
-                    TaskStatus.WAITING_TAKEOVER -> R.string.takeover_title to R.color.status_waiting
-                }
+                val (textRes, colorRes) =
+                    when (status) {
+                        TaskStatus.IDLE -> R.string.task_status_idle to R.color.status_idle
+                        TaskStatus.RUNNING -> R.string.task_status_running to R.color.status_running
+                        TaskStatus.PAUSED -> R.string.task_status_paused to R.color.status_paused
+                        TaskStatus.COMPLETED -> R.string.task_status_completed to R.color.status_completed
+                        TaskStatus.FAILED -> R.string.task_status_failed to R.color.status_failed
+                        TaskStatus.WAITING_CONFIRMATION -> R.string.floating_waiting_confirm to R.color.status_waiting
+                        TaskStatus.WAITING_TAKEOVER -> R.string.takeover_title to R.color.status_waiting
+                    }
 
                 statusText?.text = getString(textRes)
                 indicator?.let {
-                    val drawable = (it.background as? GradientDrawable)
-                        ?: GradientDrawable().also { d -> it.background = d }
+                    val drawable =
+                        (it.background as? GradientDrawable)
+                            ?: GradientDrawable().also { d -> it.background = d }
                     drawable.shape = GradientDrawable.OVAL
                     drawable.setColor(ContextCompat.getColor(this@FloatingWindowService, colorRes))
                 }
@@ -446,8 +538,8 @@ class FloatingWindowService : Service(), FloatingWindowController {
                 resultView?.setTextColor(
                     ContextCompat.getColor(
                         this@FloatingWindowService,
-                        if (isSuccess) R.color.status_completed else R.color.status_failed
-                    )
+                        if (isSuccess) R.color.status_completed else R.color.status_failed,
+                    ),
                 )
             }
         }
@@ -456,74 +548,25 @@ class FloatingWindowService : Service(), FloatingWindowController {
     /**
      * Resets the floating window to its initial state.
      *
-     * Clears all steps, resets the step counter, and returns to IDLE status.
-     *
+     * Delegates to TaskExecutionManager.resetTask() and the state will be
+     * synchronized through StateFlow. Only UI-specific cleanup (clearing input)
+     * is done here.
      */
     fun reset() {
         serviceScope.launch {
-            Logger.d(TAG, "reset() called - clearing steps and resetting to IDLE")
-            stepsList.clear()
-            stepsAdapter?.notifyDataSetChanged()
-            currentStepNumber = 0
+            Logger.d(TAG, "reset() called - delegating to TaskExecutionManager")
 
+            // Clear task input field (UI-only operation)
             floatingView?.let { view ->
-                view.findViewById<TextView>(R.id.tv_result)?.visibility = View.GONE
-                view.findViewById<TextView>(R.id.tv_step_counter)?.text =
-                    getString(R.string.step_counter_default)
                 view.findViewById<EditText>(R.id.task_input)?.text?.clear()
             }
 
-            currentStatus = TaskStatus.IDLE
-            updateUIForStatus(TaskStatus.IDLE)
-            
-            // Update status indicator
-            floatingView?.let { view ->
-                val statusText = view.findViewById<TextView>(R.id.tv_status)
-                val indicator = view.findViewById<View>(R.id.status_indicator)
-                statusText?.text = getString(R.string.task_status_idle)
-                indicator?.let {
-                    val drawable = (it.background as? GradientDrawable)
-                        ?: GradientDrawable().also { d -> it.background = d }
-                    drawable.shape = GradientDrawable.OVAL
-                    drawable.setColor(ContextCompat.getColor(this@FloatingWindowService, R.color.status_idle))
-                }
-            }
-            
-            Logger.d(TAG, "reset() complete - startTaskCallback=$startTaskCallback")
-        }
-    }
+            // Reset task state through TaskExecutionManager
+            // The UI will be updated automatically via StateFlow observation
+            TaskExecutionManager.resetTask()
 
-    /**
-     * Sets the callback for stopping a task from the floating window.
-     *
-     * @param callback Function to be called when user clicks the stop button
-     *
-     */
-    fun setStopTaskCallback(callback: () -> Unit) {
-        Logger.d(TAG, "setStopTaskCallback called")
-        stopTaskCallback = callback
-    }
-    
-    /**
-     * Sets the callback for pausing a task from the floating window.
-     *
-     * @param callback Function to be called when user clicks the pause button
-     *
-     */
-    fun setPauseTaskCallback(callback: () -> Unit) {
-        Logger.d(TAG, "setPauseTaskCallback called")
-        pauseTaskCallback = callback
-    }
-    
-    /**
-     * Sets the callback for resuming a task from the floating window.
-     *
-     * @param callback Function to be called when user clicks the resume button
-     *
-     */
-    fun setResumeTaskCallback(callback: () -> Unit) {
-        Logger.d(TAG, "setResumeTaskCallback called")
-        resumeTaskCallback = callback
+            Logger.d(TAG, "reset() complete")
+        }
     }
 
     /**
@@ -614,6 +657,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
                     controlButtonsContainer?.visibility = View.GONE
                     newTaskBtn?.visibility = View.GONE
                 }
+
                 TaskStatus.RUNNING, TaskStatus.WAITING_CONFIRMATION, TaskStatus.WAITING_TAKEOVER -> {
                     // Show steps and control buttons with pause visible
                     Logger.d(TAG, "updateUIForStatus: Setting RUNNING state - hide input, show steps")
@@ -625,6 +669,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
                     stopBtn?.visibility = View.VISIBLE
                     newTaskBtn?.visibility = View.GONE
                 }
+
                 TaskStatus.PAUSED -> {
                     // Show steps and control buttons with resume visible
                     Logger.d(TAG, "updateUIForStatus: Setting PAUSED state - show steps and resume button")
@@ -636,6 +681,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
                     stopBtn?.visibility = View.VISIBLE
                     newTaskBtn?.visibility = View.GONE
                 }
+
                 TaskStatus.COMPLETED, TaskStatus.FAILED -> {
                     // Show steps with a "New Task" button to allow starting new task
                     Logger.d(TAG, "updateUIForStatus: Setting COMPLETED/FAILED state - show steps and new task button")
@@ -658,10 +704,10 @@ class FloatingWindowService : Service(), FloatingWindowController {
         Logger.d(TAG, "Creating and showing floating window")
         createWindowView()
         addWindowInternal()
-        updateStatus(TaskStatus.IDLE)
+        // Note: updateStatus is now handled in createWindowView() based on current TaskExecutionManager state
         Logger.d(TAG, "Floating window created and shown")
     }
-    
+
     /**
      * Creates the window view without showing it.
      */
@@ -670,7 +716,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
             Logger.d(TAG, "Window view already created")
             return
         }
-        
+
         Logger.d(TAG, "Creating floating window view")
 
         val themedContext = android.view.ContextThemeWrapper(this, R.style.Theme_AutoGLM)
@@ -683,15 +729,26 @@ class FloatingWindowService : Service(), FloatingWindowController {
         setupDragBehavior()
         setupButtons()
         setupTaskInput()
-        
-        updateStatus(TaskStatus.IDLE)
-        
+
+        // Initialize UI with current state from TaskExecutionManager instead of assuming IDLE
+        // This fixes the bug where IDLE would overwrite the correct RUNNING status
+        // when the floating window is created after a task has already started
+        val currentState = TaskExecutionManager.taskState.value
+        currentStatus = currentState.status
+        updateUIForStatus(currentState.status)
+        updateStatusIndicator(currentState.status)
+        if (currentState.stepNumber > 0) {
+            currentStepNumber = currentState.stepNumber
+            floatingView?.findViewById<TextView>(R.id.tv_step_counter)?.text =
+                getString(R.string.step_counter_format, currentState.stepNumber)
+        }
+
         // Setup touch listener to clear focus when tapping outside input
         setupTouchToClearFocus()
-        
+
         Logger.d(TAG, "Floating window view created")
     }
-    
+
     /**
      * Sets up touch listener on the floating view to clear input focus
      * when user taps outside the input field or outside the window.
@@ -709,17 +766,18 @@ class FloatingWindowService : Service(), FloatingWindowController {
                         // Check if touch is outside the input field
                         val inputLocation = IntArray(2)
                         taskInput.getLocationOnScreen(inputLocation)
-                        val inputRect = android.graphics.Rect(
-                            inputLocation[0],
-                            inputLocation[1],
-                            inputLocation[0] + taskInput.width,
-                            inputLocation[1] + taskInput.height
-                        )
-                        
+                        val inputRect =
+                            android.graphics.Rect(
+                                inputLocation[0],
+                                inputLocation[1],
+                                inputLocation[0] + taskInput.width,
+                                inputLocation[1] + taskInput.height,
+                            )
+
                         // Get touch position relative to screen
                         val touchX = event.rawX.toInt()
                         val touchY = event.rawY.toInt()
-                        
+
                         if (!inputRect.contains(touchX, touchY)) {
                             // Touch is outside input, clear focus
                             Logger.d(TAG, "Touch outside input, clearing focus")
@@ -738,12 +796,13 @@ class FloatingWindowService : Service(), FloatingWindowController {
      * @return WindowManager.LayoutParams configured for the floating window
      */
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val type =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
 
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
@@ -752,25 +811,26 @@ class FloatingWindowService : Service(), FloatingWindowController {
         val widthPx = (screenWidth * WIDTH_PERCENT).toInt()
         val heightPx = (screenHeight * HEIGHT_PERCENT).toInt()
 
-        return WindowManager.LayoutParams(
-            widthPx,
-            heightPx,
-            type,
-            // FLAG_NOT_TOUCH_MODAL: allow touches outside window to pass through
-            // FLAG_WATCH_OUTSIDE_TOUCH: receive ACTION_OUTSIDE events to clear focus
-            // FLAG_NOT_FOCUSABLE: initially not focusable so back key works in other apps
-            // When user clicks input, FLAG_NOT_FOCUSABLE will be removed to allow keyboard
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 0
-            // Allow keyboard input
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        }
+        return WindowManager
+            .LayoutParams(
+                widthPx,
+                heightPx,
+                type,
+                // FLAG_NOT_TOUCH_MODAL: allow touches outside window to pass through
+                // FLAG_WATCH_OUTSIDE_TOUCH: receive ACTION_OUTSIDE events to clear focus
+                // FLAG_NOT_FOCUSABLE: initially not focusable so back key works in other apps
+                // When user clicks input, FLAG_NOT_FOCUSABLE will be removed to allow keyboard
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 0
+                y = 0
+                // Allow keyboard input
+                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
     }
 
     /**
@@ -807,7 +867,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
                             try {
                                 windowManager?.updateViewLayout(floatingView, params)
                                 Logger.d(TAG, "setupTaskInput: removed FLAG_NOT_FOCUSABLE on touch")
-                                
+
                                 // Use ViewTreeObserver to wait for window focus, then show keyboard
                                 floatingView?.viewTreeObserver?.addOnWindowFocusChangeListener(
                                     object : android.view.ViewTreeObserver.OnWindowFocusChangeListener {
@@ -820,7 +880,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
                                                 imm.showSoftInput(taskInput, InputMethodManager.SHOW_IMPLICIT)
                                             }
                                         }
-                                    }
+                                    },
                                 )
                             } catch (e: Exception) {
                                 Logger.e(TAG, "Error updating layout for focus", e)
@@ -831,7 +891,7 @@ class FloatingWindowService : Service(), FloatingWindowController {
             }
             false // Don't consume the event, let it propagate for normal EditText behavior
         }
-        
+
         // Template selection button
         selectTemplateBtn?.setOnClickListener {
             showTemplateSelectionPopup(it, taskInput)
@@ -840,43 +900,43 @@ class FloatingWindowService : Service(), FloatingWindowController {
         startBtn?.setOnClickListener {
             val task = taskInput?.text?.toString()?.trim() ?: ""
             if (task.isNotBlank()) {
+                // Check if we can start a task and get specific reason if not
+                val blockReason = TaskExecutionManager.getStartTaskBlockReason()
+                if (blockReason != TaskExecutionManager.StartTaskBlockReason.NONE) {
+                    Logger.w(TAG, "Cannot start task: $blockReason")
+                    val messageRes =
+                        when (blockReason) {
+                            TaskExecutionManager.StartTaskBlockReason.SERVICE_NOT_CONNECTED -> {
+                                R.string.toast_shizuku_not_running
+                            }
+
+                            TaskExecutionManager.StartTaskBlockReason.PHONE_AGENT_NULL -> {
+                                R.string.toast_phone_agent_not_ready
+                            }
+
+                            TaskExecutionManager.StartTaskBlockReason.TASK_ALREADY_RUNNING -> {
+                                R.string.toast_task_already_running
+                            }
+
+                            TaskExecutionManager.StartTaskBlockReason.NONE -> {
+                                R.string.toast_shizuku_not_running
+                            } // Should not happen
+                        }
+                    Toast.makeText(this, messageRes, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
                 // Clear focus and hide keyboard
                 clearInputFocus()
 
-                // Reset agent before starting new task
-                Logger.d(TAG, "Resetting agent before starting new task")
-                resetAgentCallback?.invoke()
-
-                // Clear steps and update status immediately before starting task
-                stepsList.clear()
-                stepsAdapter?.notifyDataSetChanged()
-                currentStepNumber = 0
-                currentStatus = TaskStatus.RUNNING
-                updateUIForStatus(TaskStatus.RUNNING)
-                
-                // Update status indicator
-                floatingView?.let { view ->
-                    val statusText = view.findViewById<TextView>(R.id.tv_status)
-                    val indicator = view.findViewById<View>(R.id.status_indicator)
-                    statusText?.text = getString(R.string.task_status_running)
-                    indicator?.let {
-                        val drawable = (it.background as? GradientDrawable)
-                            ?: GradientDrawable().also { d -> it.background = d }
-                        drawable.shape = GradientDrawable.OVAL
-                        drawable.setColor(ContextCompat.getColor(this, R.color.status_running))
-                    }
-                    view.findViewById<TextView>(R.id.tv_step_counter)?.text =
-                        getString(R.string.step_counter_default)
-                    view.findViewById<TextView>(R.id.tv_result)?.visibility = View.GONE
-                }
-
-                // Start task
-                Logger.d(TAG, "Starting task: $task, startTaskCallback=$startTaskCallback")
-                startTaskCallback?.invoke(task)
+                Logger.d(TAG, "Starting task via TaskExecutionManager: $task")
+                // Start task through TaskExecutionManager
+                // UI updates will happen automatically through state observation
+                TaskExecutionManager.startTask(task)
             }
         }
     }
-    
+
     /**
      * Shows a popup menu for template selection.
      *
@@ -884,29 +944,32 @@ class FloatingWindowService : Service(), FloatingWindowController {
      * @param taskInput The EditText to populate with the selected template
      */
     private fun showTemplateSelectionPopup(anchor: View, taskInput: EditText?) {
-        val settingsManager = com.kevinluo.autoglm.settings.SettingsManager(this)
+        val settingsManager =
+            com.kevinluo.autoglm.settings
+                .SettingsManager.getInstance(this)
         val templates = settingsManager.getTaskTemplates()
-        
+
         if (templates.isEmpty()) {
-            android.widget.Toast.makeText(
-                this,
-                R.string.settings_no_templates,
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            android.widget.Toast
+                .makeText(
+                    this,
+                    R.string.settings_no_templates,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
             return
         }
-        
+
         val popup = android.widget.PopupMenu(this, anchor)
         templates.forEachIndexed { index, template ->
             popup.menu.add(0, index, index, template.name)
         }
-        
+
         popup.setOnMenuItemClickListener { item ->
             val selectedTemplate = templates[item.itemId]
             taskInput?.setText(selectedTemplate.description)
             true
         }
-        
+
         popup.show()
     }
 
@@ -1001,7 +1064,9 @@ class FloatingWindowService : Service(), FloatingWindowController {
                     true
                 }
 
-                else -> false
+                else -> {
+                    false
+                }
             }
         }
     }
@@ -1012,9 +1077,10 @@ class FloatingWindowService : Service(), FloatingWindowController {
     private fun setupButtons() {
         floatingView?.findViewById<ImageButton>(R.id.btn_open_app)?.setOnClickListener {
             // Open MainActivity
-            val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
+            val intent =
+                Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
             startActivity(intent)
         }
 
@@ -1028,32 +1094,24 @@ class FloatingWindowService : Service(), FloatingWindowController {
         }
 
         floatingView?.findViewById<MaterialButton>(R.id.btn_stop)?.setOnClickListener {
-            Logger.d(TAG, "Stop button clicked, stopTaskCallback = $stopTaskCallback")
-            stopTaskCallback?.invoke()
-            if (stopTaskCallback == null) {
-                Logger.w(TAG, "stopTaskCallback is null!")
-            }
+            Logger.d(TAG, "Stop button clicked")
+            TaskExecutionManager.cancelTask()
         }
-        
+
         floatingView?.findViewById<MaterialButton>(R.id.btn_pause)?.setOnClickListener {
-            Logger.d(TAG, "Pause button clicked, pauseTaskCallback = $pauseTaskCallback")
-            pauseTaskCallback?.invoke()
-            if (pauseTaskCallback == null) {
-                Logger.w(TAG, "pauseTaskCallback is null!")
-            }
+            Logger.d(TAG, "Pause button clicked")
+            TaskExecutionManager.pauseTask()
         }
-        
+
         floatingView?.findViewById<MaterialButton>(R.id.btn_resume)?.setOnClickListener {
-            Logger.d(TAG, "Resume button clicked, resumeTaskCallback = $resumeTaskCallback")
-            resumeTaskCallback?.invoke()
-            if (resumeTaskCallback == null) {
-                Logger.w(TAG, "resumeTaskCallback is null!")
-            }
+            Logger.d(TAG, "Resume button clicked")
+            TaskExecutionManager.resumeTask()
         }
-        
+
         floatingView?.findViewById<MaterialButton>(R.id.btn_new_task)?.setOnClickListener {
             Logger.d(TAG, "New task button clicked")
-            // Reset to IDLE state to show input area
+            // Reset TaskExecutionManager and local UI state
+            TaskExecutionManager.resetTask()
             reset()
         }
     }
@@ -1126,10 +1184,8 @@ class FloatingWindowService : Service(), FloatingWindowController {
      * @property steps The list of steps to display
      *
      */
-    private inner class StepsAdapter(
-        private val steps: List<FloatingStep>
-    ) : RecyclerView.Adapter<StepsAdapter.ViewHolder>() {
-
+    private inner class StepsAdapter(private val steps: List<FloatingStep>) :
+        RecyclerView.Adapter<StepsAdapter.ViewHolder>() {
         /**
          * ViewHolder for step items.
          */
@@ -1140,24 +1196,39 @@ class FloatingWindowService : Service(), FloatingWindowController {
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_floating_step, parent, false)
+            val view =
+                LayoutInflater
+                    .from(parent.context)
+                    .inflate(R.layout.item_floating_step, parent, false)
             return ViewHolder(view)
         }
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val step = steps[position]
             holder.stepNumber.text = step.stepNumber.toString()
-            
-            // Hide thinking if empty
-            if (step.thinking.isBlank()) {
+
+            // Check if both thinking and action are empty (loading state)
+            val isLoading = step.thinking.isBlank() && step.action.isBlank()
+
+            if (isLoading) {
+                // Show "thinking..." placeholder
+                holder.thinkingText.visibility = View.VISIBLE
+                holder.thinkingText.text = getString(R.string.floating_thinking)
+            } else if (step.thinking.isBlank()) {
                 holder.thinkingText.visibility = View.GONE
             } else {
                 holder.thinkingText.visibility = View.VISIBLE
                 holder.thinkingText.text = step.thinking
             }
-            
-            holder.actionText.text = step.action
+
+            // Hide action area (including dot separator) if action is empty
+            val actionContainer = holder.actionText.parent as? View
+            if (step.action.isBlank()) {
+                actionContainer?.visibility = View.GONE
+            } else {
+                actionContainer?.visibility = View.VISIBLE
+                holder.actionText.text = step.action
+            }
         }
 
         override fun getItemCount(): Int = steps.size

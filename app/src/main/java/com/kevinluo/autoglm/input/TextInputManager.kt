@@ -33,10 +33,9 @@ import kotlinx.coroutines.withContext
  *
  */
 class TextInputManager(private val userService: IUserService) {
-
     /** Cached original IME for restoration after text input. */
     private var originalIme: String? = null
-    
+
     /**
      * Types text into the currently focused input field.
      *
@@ -112,11 +111,11 @@ class TextInputManager(private val userService: IUserService) {
         // Save original IME
         originalIme = currentIme
         Logger.d(TAG, "Saved original IME: $originalIme")
-        
+
         // List all enabled IMEs to debug
         val enabledImes = shell("ime list -s")
         Logger.d(TAG, "Enabled IMEs:\n$enabledImes")
-        
+
         // Get the IME ID
         val imeId = KeyboardHelper.IME_ID
         Logger.d(TAG, "AutoGLM Keyboard IME ID: $imeId")
@@ -153,7 +152,7 @@ class TextInputManager(private val userService: IUserService) {
         val newIme = getCurrentIme()
         return KeyboardHelper.isAutoGLMKeyboard(newIme)
     }
-    
+
     /**
      * Gets the current default input method.
      *
@@ -217,13 +216,11 @@ class TextInputManager(private val userService: IUserService) {
      * @param command The shell command to execute
      * @return The command output, or an error message if execution failed
      */
-    private fun shell(command: String): String {
-        return try {
-            userService.executeCommand(command)
-        } catch (e: Exception) {
-            Logger.e(TAG, "Shell command failed: $command", e)
-            "Error: ${e.message}"
-        }
+    private fun shell(command: String): String = try {
+        userService.executeCommand(command)
+    } catch (e: Exception) {
+        Logger.e(TAG, "Shell command failed: $command", e)
+        "Error: ${e.message}"
     }
 
     companion object {
@@ -232,19 +229,23 @@ class TextInputManager(private val userService: IUserService) {
         // Broadcast actions
         private const val ACTION_INPUT_B64 = "ADB_INPUT_B64"
         private const val ACTION_CLEAR_TEXT = "ADB_CLEAR_TEXT"
-        
+
         // Package name
         private const val PACKAGE_NAME = "com.kevinluo.autoglm"
 
         // Timing constants (increased for stability)
         // Wait after switching keyboard to ensure it's fully active
         private const val KEYBOARD_SWITCH_DELAY_MS = 1000L
+
         // Wait after enabling keyboard before switching
         private const val IME_ENABLE_DELAY_MS = 500L
+
         // Wait after clearing text to ensure field is empty
         private const val TEXT_CLEAR_DELAY_MS = 500L
+
         // Wait after inputting text to ensure it's committed
         private const val TEXT_INPUT_DELAY_MS = 500L
+
         // Wait after restoring keyboard before continuing
         private const val KEYBOARD_RESTORE_DELAY_MS = 500L
     }
@@ -260,10 +261,7 @@ class TextInputManager(private val userService: IUserService) {
  * @property message A descriptive message about the operation result
  *
  */
-data class InputResult(
-    val success: Boolean,
-    val message: String
-) {
+data class InputResult(val success: Boolean, val message: String) {
     companion object {
         /**
          * Creates a successful input result.

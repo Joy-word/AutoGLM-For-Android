@@ -31,17 +31,14 @@ import java.util.Locale
  * @param coroutineScope Scope for launching async operations
  *
  */
-class HistoryDetailAdapter(
-    private val historyManager: HistoryManager,
-    private val coroutineScope: CoroutineScope
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-    
+class HistoryDetailAdapter(private val historyManager: HistoryManager, private val coroutineScope: CoroutineScope) :
+    RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private var task: TaskHistory? = null
     private val loadedBitmaps = mutableMapOf<String, Bitmap>()
     private val loadingJobs = mutableMapOf<Int, Job>()
-    
+
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    
+
     /**
      * Sets the task to display.
      *
@@ -52,7 +49,7 @@ class HistoryDetailAdapter(
         Logger.d(TAG, "Set task with ${task.stepCount} steps")
         notifyDataSetChanged()
     }
-    
+
     /**
      * Cleans up resources including cached bitmaps and pending jobs.
      *
@@ -65,11 +62,9 @@ class HistoryDetailAdapter(
         loadedBitmaps.clear()
         Logger.d(TAG, "Cleaned up adapter resources")
     }
-    
-    override fun getItemViewType(position: Int): Int {
-        return if (position == 0) TYPE_HEADER else TYPE_STEP
-    }
-    
+
+    override fun getItemViewType(position: Int): Int = if (position == 0) TYPE_HEADER else TYPE_STEP
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
@@ -77,31 +72,35 @@ class HistoryDetailAdapter(
                 val view = inflater.inflate(R.layout.item_history_header, parent, false)
                 HeaderViewHolder(view)
             }
+
             else -> {
                 val view = inflater.inflate(R.layout.item_history_step, parent, false)
                 StepViewHolder(view)
             }
         }
     }
-    
+
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val currentTask = task ?: return
         when (holder) {
-            is HeaderViewHolder -> holder.bind(currentTask)
+            is HeaderViewHolder -> {
+                holder.bind(currentTask)
+            }
+
             is StepViewHolder -> {
-                val stepIndex = position - 1  // Subtract 1 for header
+                val stepIndex = position - 1 // Subtract 1 for header
                 if (stepIndex < currentTask.steps.size) {
                     holder.bind(currentTask.steps[stepIndex])
                 }
             }
         }
     }
-    
+
     override fun getItemCount(): Int {
         val currentTask = task ?: return 0
-        return 1 + currentTask.steps.size  // 1 header + steps
+        return 1 + currentTask.steps.size // 1 header + steps
     }
-    
+
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
         if (holder is StepViewHolder) {
@@ -110,7 +109,7 @@ class HistoryDetailAdapter(
             holder.clearImage()
         }
     }
-    
+
     /**
      * ViewHolder for the header section displaying task overview.
      */
@@ -118,7 +117,7 @@ class HistoryDetailAdapter(
         private val taskDescription: TextView = itemView.findViewById(R.id.taskDescription)
         private val statusText: TextView = itemView.findViewById(R.id.statusText)
         private val infoText: TextView = itemView.findViewById(R.id.infoText)
-        
+
         /**
          * Binds task data to the header view.
          *
@@ -126,7 +125,7 @@ class HistoryDetailAdapter(
          */
         fun bind(task: TaskHistory) {
             taskDescription.text = task.taskDescription
-            
+
             val context = itemView.context
             if (task.success) {
                 statusText.text = context.getString(R.string.history_success)
@@ -135,11 +134,11 @@ class HistoryDetailAdapter(
                 statusText.text = context.getString(R.string.history_failed)
                 statusText.setTextColor(ContextCompat.getColor(context, R.color.status_error))
             }
-            
+
             val duration = formatDuration(task.duration)
             infoText.text = "${dateFormat.format(Date(task.startTime))} · ${task.stepCount}步 · $duration"
         }
-        
+
         /**
          * Formats duration in milliseconds to a human-readable string.
          *
@@ -155,7 +154,7 @@ class HistoryDetailAdapter(
             }
         }
     }
-    
+
     /**
      * ViewHolder for individual step items.
      *
@@ -172,9 +171,9 @@ class HistoryDetailAdapter(
         private val btnOriginal: MaterialButton = itemView.findViewById(R.id.btnOriginal)
         private val btnAnnotated: MaterialButton = itemView.findViewById(R.id.btnAnnotated)
         private val messageText: TextView = itemView.findViewById(R.id.messageText)
-        
+
         private var currentStep: HistoryStep? = null
-        
+
         /**
          * Binds step data to the view.
          *
@@ -182,10 +181,10 @@ class HistoryDetailAdapter(
          */
         fun bind(step: HistoryStep) {
             currentStep = step
-            
+
             stepNumber.text = step.stepNumber.toString()
             actionDescription.text = step.actionDescription
-            
+
             val context = itemView.context
             if (step.success) {
                 statusIcon.setImageResource(R.drawable.ic_check_circle)
@@ -194,36 +193,36 @@ class HistoryDetailAdapter(
                 statusIcon.setImageResource(R.drawable.ic_error)
                 statusIcon.setColorFilter(ContextCompat.getColor(context, R.color.status_error))
             }
-            
+
             if (step.thinking.isNotBlank()) {
                 thinkingSection.visibility = View.VISIBLE
                 thinkingText.text = step.thinking
             } else {
                 thinkingSection.visibility = View.GONE
             }
-            
+
             if (step.screenshotPath != null || step.annotatedScreenshotPath != null) {
                 screenshotSection.visibility = View.VISIBLE
                 screenshotImage.setImageDrawable(null)
-                
+
                 val defaultPath = step.annotatedScreenshotPath ?: step.screenshotPath
                 loadScreenshot(defaultPath, screenshotImage)
-                
+
                 val hasAnnotated = step.annotatedScreenshotPath != null
                 btnAnnotated.visibility = if (hasAnnotated) View.VISIBLE else View.GONE
-                
+
                 btnOriginal.setOnClickListener {
                     loadScreenshot(step.screenshotPath, screenshotImage)
                     btnOriginal.alpha = 1f
                     btnAnnotated.alpha = 0.5f
                 }
-                
+
                 btnAnnotated.setOnClickListener {
                     loadScreenshot(step.annotatedScreenshotPath, screenshotImage)
                     btnOriginal.alpha = 0.5f
                     btnAnnotated.alpha = 1f
                 }
-                
+
                 if (hasAnnotated) {
                     btnOriginal.alpha = 0.5f
                     btnAnnotated.alpha = 1f
@@ -233,7 +232,7 @@ class HistoryDetailAdapter(
             } else {
                 screenshotSection.visibility = View.GONE
             }
-            
+
             if (!step.message.isNullOrBlank()) {
                 messageText.visibility = View.VISIBLE
                 messageText.text = step.message
@@ -241,14 +240,14 @@ class HistoryDetailAdapter(
                 messageText.visibility = View.GONE
             }
         }
-        
+
         /**
          * Clears the screenshot image to free memory.
          */
         fun clearImage() {
             screenshotImage.setImageDrawable(null)
         }
-        
+
         /**
          * Loads a screenshot asynchronously and displays it.
          *
@@ -259,30 +258,32 @@ class HistoryDetailAdapter(
          */
         private fun loadScreenshot(path: String?, imageView: ImageView) {
             if (path == null) return
-            
+
             loadedBitmaps[path]?.let {
                 if (!it.isRecycled) {
                     imageView.setImageBitmap(it)
                     return
                 }
             }
-            
+
             loadingJobs[adapterPosition]?.cancel()
-            
-            loadingJobs[adapterPosition] = coroutineScope.launch {
-                val bitmap = withContext(Dispatchers.IO) {
-                    historyManager.getScreenshotBitmap(path)
-                }
-                bitmap?.let {
-                    loadedBitmaps[path] = it
-                    if (currentStep?.screenshotPath == path || currentStep?.annotatedScreenshotPath == path) {
-                        imageView.setImageBitmap(it)
+
+            loadingJobs[adapterPosition] =
+                coroutineScope.launch {
+                    val bitmap =
+                        withContext(Dispatchers.IO) {
+                            historyManager.getScreenshotBitmap(path)
+                        }
+                    bitmap?.let {
+                        loadedBitmaps[path] = it
+                        if (currentStep?.screenshotPath == path || currentStep?.annotatedScreenshotPath == path) {
+                            imageView.setImageBitmap(it)
+                        }
                     }
                 }
-            }
         }
     }
-    
+
     companion object {
         private const val TAG = "HistoryDetailAdapter"
         private const val TYPE_HEADER = 0

@@ -30,9 +30,8 @@ class ActionHandler(
     private val appResolver: AppResolver,
     private val swipeGenerator: HumanizedSwipeGenerator,
     private val textInputManager: TextInputManager,
-    private val floatingWindowProvider: (() -> FloatingWindowController?)? = null
+    private val floatingWindowProvider: (() -> FloatingWindowController?)? = null,
 ) {
-
     /**
      * Callback interface for sensitive operation confirmation.
      *
@@ -74,7 +73,7 @@ class ActionHandler(
     fun setConfirmationCallback(callback: ConfirmationCallback?) {
         confirmationCallback = callback
     }
-    
+
     /**
      * Hides the floating window before touch operations to prevent it from intercepting touches.
      *
@@ -109,61 +108,54 @@ class ActionHandler(
      * @return The result of the action execution
      *
      */
-    suspend fun execute(
-        action: AgentAction,
-        screenWidth: Int,
-        screenHeight: Int
-    ): ActionResult {
-        Logger.logAction(action::class.simpleName ?: "Unknown", "Executing on ${screenWidth}x${screenHeight}")
-        
+    suspend fun execute(action: AgentAction, screenWidth: Int, screenHeight: Int): ActionResult {
+        Logger.logAction(action::class.simpleName ?: "Unknown", "Executing on ${screenWidth}x$screenHeight")
+
         return try {
-            val result = when (action) {
-                is AgentAction.Tap -> executeTap(action, screenWidth, screenHeight)
-                is AgentAction.Swipe -> executeSwipe(action, screenWidth, screenHeight)
-                is AgentAction.Type -> executeType(action)
-                is AgentAction.TypeName -> executeTypeName(action)
-                is AgentAction.Launch -> executeLaunch(action)
-                is AgentAction.ListApps -> executeListApps()
-                is AgentAction.Back -> executeBack()
-                is AgentAction.Home -> executeHome()
-                is AgentAction.VolumeUp -> executeVolumeUp()
-                is AgentAction.VolumeDown -> executeVolumeDown()
-                is AgentAction.Power -> executePower()
-                is AgentAction.LongPress -> executeLongPress(action, screenWidth, screenHeight)
-                is AgentAction.DoubleTap -> executeDoubleTap(action, screenWidth, screenHeight)
-                is AgentAction.Wait -> executeWait(action)
-                is AgentAction.TakeOver -> executeTakeOver(action)
-                is AgentAction.Interact -> executeInteract(action)
-                is AgentAction.Note -> executeNote(action)
-                is AgentAction.CallApi -> executeCallApi(action)
-                is AgentAction.Finish -> executeFinish(action)
-                is AgentAction.Batch -> executeBatch(action, screenWidth, screenHeight)
-            }
-            
+            val result =
+                when (action) {
+                    is AgentAction.Tap -> executeTap(action, screenWidth, screenHeight)
+                    is AgentAction.Swipe -> executeSwipe(action, screenWidth, screenHeight)
+                    is AgentAction.Type -> executeType(action)
+                    is AgentAction.TypeName -> executeTypeName(action)
+                    is AgentAction.Launch -> executeLaunch(action)
+                    is AgentAction.ListApps -> executeListApps()
+                    is AgentAction.Back -> executeBack()
+                    is AgentAction.Home -> executeHome()
+                    is AgentAction.VolumeUp -> executeVolumeUp()
+                    is AgentAction.VolumeDown -> executeVolumeDown()
+                    is AgentAction.Power -> executePower()
+                    is AgentAction.LongPress -> executeLongPress(action, screenWidth, screenHeight)
+                    is AgentAction.DoubleTap -> executeDoubleTap(action, screenWidth, screenHeight)
+                    is AgentAction.Wait -> executeWait(action)
+                    is AgentAction.TakeOver -> executeTakeOver(action)
+                    is AgentAction.Interact -> executeInteract(action)
+                    is AgentAction.Note -> executeNote(action)
+                    is AgentAction.CallApi -> executeCallApi(action)
+                    is AgentAction.Finish -> executeFinish(action)
+                    is AgentAction.Batch -> executeBatch(action, screenWidth, screenHeight)
+                }
+
             Logger.d(TAG, "Action result: success=${result.success}, message=${result.message}")
             result
         } catch (e: Exception) {
-            val handledError = ErrorHandler.handleActionError(
-                action::class.simpleName ?: "Unknown",
-                e.message ?: "Unknown error",
-                e
-            )
+            val handledError =
+                ErrorHandler.handleActionError(
+                    action::class.simpleName ?: "Unknown",
+                    e.message ?: "Unknown error",
+                    e,
+                )
             Logger.e(TAG, ErrorHandler.formatErrorForLog(handledError), e)
             ActionResult(false, false, handledError.userMessage)
         }
     }
-
 
     /**
      * Executes a Tap action.
      * Hides floating window before tap to prevent touch interception.
      * Uses try-finally to ensure floating window is restored even if tap fails.
      */
-    private suspend fun executeTap(
-        action: AgentAction.Tap,
-        screenWidth: Int,
-        screenHeight: Int
-    ): ActionResult {
+    private suspend fun executeTap(action: AgentAction.Tap, screenWidth: Int, screenHeight: Int): ActionResult {
         // Handle sensitive operation confirmation
         if (action.message != null) {
             val confirmed = confirmationCallback?.onConfirmationRequired(action.message) ?: true
@@ -171,14 +163,18 @@ class ActionHandler(
                 return ActionResult(true, false, "点击已被用户取消")
             }
         }
-        
-        val (absX, absY) = CoordinateConverter.toAbsolute(
-            action.x, action.y, screenWidth, screenHeight
-        )
-        
+
+        val (absX, absY) =
+            CoordinateConverter.toAbsolute(
+                action.x,
+                action.y,
+                screenWidth,
+                screenHeight,
+            )
+
         // Hide floating window to prevent touch interception
         hideFloatingWindow()
-        
+
         return try {
             val result = deviceExecutor.tap(absX, absY)
             if (isDeviceExecutorError(result)) {
@@ -192,44 +188,59 @@ class ActionHandler(
             showFloatingWindow()
         }
     }
-    
+
     /**
      * Executes a Swipe action.
      * Hides floating window before swipe to prevent touch interception.
      * Uses try-finally to ensure floating window is restored even if swipe fails.
      */
-    private suspend fun executeSwipe(
-        action: AgentAction.Swipe,
-        screenWidth: Int,
-        screenHeight: Int
-    ): ActionResult {
-        val (startAbsX, startAbsY) = CoordinateConverter.toAbsolute(
-            action.startX, action.startY, screenWidth, screenHeight
-        )
-        val (endAbsX, endAbsY) = CoordinateConverter.toAbsolute(
-            action.endX, action.endY, screenWidth, screenHeight
-        )
-        
-        val swipePath = if (action.humanized) {
-            swipeGenerator.generatePath(
-                startAbsX, startAbsY, endAbsX, endAbsY, screenWidth, screenHeight
+    private suspend fun executeSwipe(action: AgentAction.Swipe, screenWidth: Int, screenHeight: Int): ActionResult {
+        val (startAbsX, startAbsY) =
+            CoordinateConverter.toAbsolute(
+                action.startX,
+                action.startY,
+                screenWidth,
+                screenHeight,
             )
-        } else {
-            swipeGenerator.generateLinearPath(
-                startAbsX, startAbsY, endAbsX, endAbsY, screenWidth, screenHeight
+        val (endAbsX, endAbsY) =
+            CoordinateConverter.toAbsolute(
+                action.endX,
+                action.endY,
+                screenWidth,
+                screenHeight,
             )
-        }
-        
+
+        val swipePath =
+            if (action.humanized) {
+                swipeGenerator.generatePath(
+                    startAbsX,
+                    startAbsY,
+                    endAbsX,
+                    endAbsY,
+                    screenWidth,
+                    screenHeight,
+                )
+            } else {
+                swipeGenerator.generateLinearPath(
+                    startAbsX,
+                    startAbsY,
+                    endAbsX,
+                    endAbsY,
+                    screenWidth,
+                    screenHeight,
+                )
+            }
+
         // Hide floating window to prevent touch interception
         hideFloatingWindow()
-        
+
         return try {
             val result = deviceExecutor.swipe(swipePath.points, swipePath.durationMs)
-            
+
             // Wait for swipe animation to complete before showing floating window
             // The swipe command returns immediately, but the gesture takes time
             delay(swipePath.durationMs.toLong() + 100)
-            
+
             if (isDeviceExecutorError(result)) {
                 Logger.w(TAG, "Swipe command failed: $result")
                 ActionResult(false, false, "滑动失败: $result")
@@ -241,25 +252,25 @@ class ActionHandler(
             showFloatingWindow()
         }
     }
-    
+
     /**
      * Executes a Type action.
-     * 
+     *
      * IMPORTANT: We must hide the floating window before typing to ensure:
      * 1. The target app's input field has focus
      * 2. AutoGLM Keyboard's onCreateInputView() is called
      * 3. The BroadcastReceiver is registered
-     * 
+     *
      * Uses try-finally to ensure floating window is restored even if typing fails.
      */
     private suspend fun executeType(action: AgentAction.Type): ActionResult {
         // Hide floating window to ensure target app has focus
         hideFloatingWindow()
-        
+
         return try {
             // Small delay to let the system settle focus
             delay(200)
-            
+
             val result = textInputManager.typeText(action.text)
             ActionResult(result.success, false, result.message)
         } finally {
@@ -267,7 +278,7 @@ class ActionHandler(
             showFloatingWindow()
         }
     }
-    
+
     /**
      * Executes a TypeName action (same as Type).
      * Uses try-finally to ensure floating window is restored even if typing fails.
@@ -275,11 +286,11 @@ class ActionHandler(
     private suspend fun executeTypeName(action: AgentAction.TypeName): ActionResult {
         // Hide floating window to ensure target app has focus
         hideFloatingWindow()
-        
+
         return try {
             // Small delay to let the system settle focus
             delay(200)
-            
+
             val result = textInputManager.typeText(action.text)
             ActionResult(result.success, false, "输入名称: ${action.text}")
         } finally {
@@ -287,45 +298,41 @@ class ActionHandler(
             showFloatingWindow()
         }
     }
-    
+
     /**
      * Executes a Launch action.
      * If package name is found, launches directly and checks for errors.
      * If not found, returns success with a message instructing the model
      * to find the app icon on screen (home screen or app drawer).
-     * 
+     *
      */
     private suspend fun executeLaunch(action: AgentAction.Launch): ActionResult {
         Logger.d(TAG, "Launching app: ${action.app}")
-        
-        val packageName = if (action.app.contains('.')) {
-            // Looks like a package name, use directly
-            Logger.d(TAG, "Using package name directly: ${action.app}")
-            action.app
-        } else {
-            // Resolve app name to package name
-            Logger.d(TAG, "Resolving app name: ${action.app}")
-            appResolver.resolvePackageName(action.app)
-        }
-        
+
+        val packageName =
+            if (action.app.contains('.')) {
+                // Looks like a package name, use directly
+                Logger.d(TAG, "Using package name directly: ${action.app}")
+                action.app
+            } else {
+                // Resolve app name to package name
+                Logger.d(TAG, "Resolving app name: ${action.app}")
+                appResolver.resolvePackageName(action.app)
+            }
+
         return if (packageName != null) {
             Logger.i(TAG, "Launching package: $packageName")
             val launchResult = deviceExecutor.launchApp(packageName)
-            
-            // Check if launch was successful by examining the result
-            val isError = launchResult.contains("Error", ignoreCase = true) ||
-                         launchResult.contains("Exception", ignoreCase = true) ||
-                         launchResult.contains("not found", ignoreCase = true) ||
-                         launchResult.contains("does not exist", ignoreCase = true)
-            
-            if (isError) {
+
+            if (isDeviceExecutorError(launchResult)) {
                 Logger.w(TAG, "Launch failed for $packageName: $launchResult")
                 // Launch failed - instruct model to find app icon on screen
                 deviceExecutor.pressKey(DeviceExecutor.KEYCODE_HOME)
                 ActionResult(
-                    success = true,  // Operation itself succeeded, just app not found
+                    // Operation itself succeeded, just app not found
+                    success = true,
                     shouldFinish = false,
-                    message = "启动应用'$packageName'失败，已返回主屏幕。请在主屏幕或应用列表中查找并点击'${action.app}'应用图标来启动它。"
+                    message = "启动应用'$packageName'失败，已返回主屏幕。请在主屏幕或应用列表中查找并点击'${action.app}'应用图标来启动它。",
                 )
             } else {
                 ActionResult(true, false, "启动应用: $packageName")
@@ -338,38 +345,39 @@ class ActionHandler(
             ActionResult(
                 success = true,
                 shouldFinish = false,
-                message = "找不到应用包名'${action.app}'，已返回主屏幕。请在主屏幕或应用列表中查找并点击'${action.app}'应用图标来启动它。如果主屏幕没有，请上滑打开应用列表查找。"
+                message = "找不到应用包名'${action.app}'，已返回主屏幕。请在主屏幕或应用列表中查找并点击'${action.app}'应用图标来启动它。如果主屏幕没有，请上滑打开应用列表查找。",
             )
         }
     }
-    
+
     /**
      * Executes a ListApps action.
      * Returns a list of all installed launchable apps with their names and package names.
      */
     private suspend fun executeListApps(): ActionResult {
         Logger.d(TAG, "Listing all installed apps")
-        
+
         val apps = appResolver.getAllLaunchableApps()
-        
+
         if (apps.isEmpty()) {
             return ActionResult(true, false, "未找到已安装的应用")
         }
-        
+
         // Format app list for display
-        val appListStr = buildString {
-            appendLine("已安装的应用列表 (共${apps.size}个):")
-            appendLine()
-            apps.sortedBy { it.displayName.lowercase() }.forEach { app ->
-                appendLine("• ${app.displayName}")
-                appendLine("  包名: ${app.packageName}")
+        val appListStr =
+            buildString {
+                appendLine("已安装的应用列表 (共${apps.size}个):")
+                appendLine()
+                apps.sortedBy { it.displayName.lowercase() }.forEach { app ->
+                    appendLine("• ${app.displayName}")
+                    appendLine("  包名: ${app.packageName}")
+                }
             }
-        }
-        
+
         Logger.i(TAG, "Found ${apps.size} installed apps")
         return ActionResult(true, false, appListStr)
     }
-    
+
     /**
      * Executes a Back action.
      * First dismisses the soft keyboard (if shown) to ensure the back action
@@ -378,9 +386,9 @@ class ActionHandler(
     private suspend fun executeBack(): ActionResult {
         // First, dismiss keyboard with ESCAPE key to ensure Back actually navigates
         // If keyboard is shown, the first Back would just close it
-        deviceExecutor.pressKey(111) // KEYCODE_ESCAPE
+        deviceExecutor.pressKey(KEYCODE_ESCAPE)
         delay(100)
-        
+
         // Now press Back to navigate
         val result = deviceExecutor.pressKey(DeviceExecutor.KEYCODE_BACK)
         return if (isDeviceExecutorError(result)) {
@@ -390,7 +398,7 @@ class ActionHandler(
             ActionResult(true, false, "返回")
         }
     }
-    
+
     /**
      * Executes a Home action.
      */
@@ -403,7 +411,7 @@ class ActionHandler(
             ActionResult(true, false, "主页")
         }
     }
-    
+
     /**
      * Executes a VolumeUp action.
      */
@@ -416,7 +424,7 @@ class ActionHandler(
             ActionResult(true, false, "音量+")
         }
     }
-    
+
     /**
      * Executes a VolumeDown action.
      */
@@ -429,7 +437,7 @@ class ActionHandler(
             ActionResult(true, false, "音量-")
         }
     }
-    
+
     /**
      * Executes a Power action.
      */
@@ -443,7 +451,6 @@ class ActionHandler(
         }
     }
 
-
     /**
      * Executes a LongPress action.
      * Hides floating window before long press to prevent touch interception.
@@ -452,22 +459,26 @@ class ActionHandler(
     private suspend fun executeLongPress(
         action: AgentAction.LongPress,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
     ): ActionResult {
-        val (absX, absY) = CoordinateConverter.toAbsolute(
-            action.x, action.y, screenWidth, screenHeight
-        )
-        
+        val (absX, absY) =
+            CoordinateConverter.toAbsolute(
+                action.x,
+                action.y,
+                screenWidth,
+                screenHeight,
+            )
+
         // Hide floating window to prevent touch interception
         hideFloatingWindow()
-        
+
         return try {
             val result = deviceExecutor.longPress(absX, absY, action.durationMs)
-            
+
             // Wait for long press to complete before showing floating window
             // The command returns immediately, but the gesture takes time
             delay(action.durationMs.toLong() + 100)
-            
+
             if (isDeviceExecutorError(result)) {
                 Logger.w(TAG, "Long press command failed: $result")
                 ActionResult(false, false, "长按失败: $result")
@@ -479,7 +490,7 @@ class ActionHandler(
             showFloatingWindow()
         }
     }
-    
+
     /**
      * Executes a DoubleTap action.
      * Hides floating window before double tap to prevent touch interception.
@@ -488,15 +499,19 @@ class ActionHandler(
     private suspend fun executeDoubleTap(
         action: AgentAction.DoubleTap,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
     ): ActionResult {
-        val (absX, absY) = CoordinateConverter.toAbsolute(
-            action.x, action.y, screenWidth, screenHeight
-        )
-        
+        val (absX, absY) =
+            CoordinateConverter.toAbsolute(
+                action.x,
+                action.y,
+                screenWidth,
+                screenHeight,
+            )
+
         // Hide floating window to prevent touch interception
         hideFloatingWindow()
-        
+
         return try {
             val result = deviceExecutor.doubleTap(absX, absY)
             if (isDeviceExecutorError(result)) {
@@ -510,7 +525,7 @@ class ActionHandler(
             showFloatingWindow()
         }
     }
-    
+
     /**
      * Executes a Wait action.
      */
@@ -519,7 +534,7 @@ class ActionHandler(
         delay(durationMs)
         return ActionResult(true, false, "等待 ${action.durationSeconds}秒")
     }
-    
+
     /**
      * Executes a TakeOver action.
      */
@@ -527,7 +542,7 @@ class ActionHandler(
         confirmationCallback?.onTakeOverRequested(action.message)
         return ActionResult(true, false, "请求手动接管: ${action.message}")
     }
-    
+
     /**
      * Executes an Interact action.
      */
@@ -540,7 +555,7 @@ class ActionHandler(
             ActionResult(true, false, "交互已取消")
         }
     }
-    
+
     /**
      * Executes a Note action.
      */
@@ -548,7 +563,7 @@ class ActionHandler(
         // Note action just records the message, no device operation needed
         return ActionResult(true, false, "备注: ${action.message}")
     }
-    
+
     /**
      * Executes a CallApi action.
      */
@@ -556,68 +571,63 @@ class ActionHandler(
         // CallApi action is handled by the agent layer, not device operations
         return ActionResult(true, false, "API调用: ${action.instruction}")
     }
-    
+
     /**
      * Executes a Finish action.
      */
-    private suspend fun executeFinish(action: AgentAction.Finish): ActionResult {
-        return ActionResult(true, true, action.message)
-    }
-    
+    private suspend fun executeFinish(action: AgentAction.Finish): ActionResult =
+        ActionResult(true, true, action.message)
+
     /**
      * Executes a Batch action - multiple actions in sequence with delay between each.
      * Useful for multi-step operations like typing digits on a custom numeric keypad.
      */
-    private suspend fun executeBatch(
-        action: AgentAction.Batch,
-        screenWidth: Int,
-        screenHeight: Int
-    ): ActionResult {
+    private suspend fun executeBatch(action: AgentAction.Batch, screenWidth: Int, screenHeight: Int): ActionResult {
         val results = mutableListOf<String>()
         var allSuccess = true
-        
+
         Logger.d(TAG, "Executing batch with ${action.steps.size} steps, ${action.delayMs}ms delay")
-        
+
         for ((index, step) in action.steps.withIndex()) {
             // Don't allow nested Batch actions to prevent infinite recursion
             if (step is AgentAction.Batch) {
                 Logger.w(TAG, "Skipping nested Batch action at step $index")
                 continue
             }
-            
+
             // Don't allow Finish in batch - it should be a separate action
             if (step is AgentAction.Finish) {
                 Logger.w(TAG, "Skipping Finish action in batch at step $index")
                 continue
             }
-            
+
             Logger.d(TAG, "Batch step ${index + 1}/${action.steps.size}: ${step.formatForDisplay()}")
-            
+
             val result = execute(step, screenWidth, screenHeight)
             results.add("Step ${index + 1}: ${result.message ?: "OK"}")
-            
+
             if (!result.success) {
                 allSuccess = false
                 Logger.w(TAG, "Batch step ${index + 1} failed: ${result.message}")
             }
-            
+
             // Delay between steps (except after the last step)
             if (index < action.steps.size - 1) {
                 delay(action.delayMs.toLong())
             }
         }
-        
+
         val allSucceededMsg = if (allSuccess) "all succeeded" else "some failed"
         val summary = "Batch completed: ${action.steps.size} steps, $allSucceededMsg"
         Logger.d(TAG, summary)
-        
+
         return ActionResult(
             success = allSuccess,
             shouldFinish = false,
-            message = summary
+            message = summary,
         )
     }
-    
+
     /**
      * Generates the shell commands that would be executed for a Type action.
      * Useful for testing and verification.
@@ -625,17 +635,17 @@ class ActionHandler(
      * @param text The text to type
      * @return List of shell commands (clear + input)
      */
-    fun generateTypeCommands(text: String): List<String> {
-        return listOf(
-            "clear_text", // Placeholder for clear operation
-            "input text '$text'"
-        )
-    }
+    fun generateTypeCommands(text: String): List<String> = listOf(
+        // Placeholder for clear operation
+        "clear_text",
+        "input text '$text'",
+    )
 
     companion object {
         private const val TAG = "ActionHandler"
         private const val WINDOW_HIDE_DELAY_MS = 100L
         private const val WINDOW_SHOW_DELAY_MS = 50L
+        private const val KEYCODE_ESCAPE = 111
 
         /**
          * Checks if a DeviceExecutor result indicates an error.
@@ -643,11 +653,11 @@ class ActionHandler(
          * @param result The result string from DeviceExecutor
          * @return true if the result indicates an error, false otherwise
          */
-        fun isDeviceExecutorError(result: String): Boolean {
-            return result.contains("Error", ignoreCase = true) ||
-                   result.contains("Exception", ignoreCase = true) ||
-                   result.contains("failed", ignoreCase = true) ||
-                   result.contains("permission denied", ignoreCase = true)
-        }
+        fun isDeviceExecutorError(result: String): Boolean = result.contains("Error", ignoreCase = true) ||
+            result.contains("Exception", ignoreCase = true) ||
+            result.contains("failed", ignoreCase = true) ||
+            result.contains("permission denied", ignoreCase = true) ||
+            result.contains("not found", ignoreCase = true) ||
+            result.contains("does not exist", ignoreCase = true)
     }
 }

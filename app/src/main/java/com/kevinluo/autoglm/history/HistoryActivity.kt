@@ -10,12 +10,14 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.kevinluo.autoglm.BaseActivity
+import com.kevinluo.autoglm.MainActivity
 import com.kevinluo.autoglm.R
 import com.kevinluo.autoglm.util.Logger
 import kotlinx.coroutines.flow.collectLatest
@@ -37,31 +39,97 @@ import java.util.Locale
  * - Batch delete selected tasks
  * - Clear all history
  *
+ * @deprecated This Activity is deprecated. Use HistoryFragment instead.
+ * This Activity now redirects to MainActivity with the history tab selected
+ * for backward compatibility with existing Intents.
  */
-class HistoryActivity : AppCompatActivity() {
-    
+@Deprecated(
+    message = "Use HistoryFragment instead. This Activity redirects to MainActivity.",
+    replaceWith = ReplaceWith("HistoryFragment"),
+)
+class HistoryActivity : BaseActivity() {
     private lateinit var historyManager: HistoryManager
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyState: LinearLayout
     private lateinit var adapter: HistoryAdapter
-    
+
     // Multi-select mode
     private lateinit var normalToolbar: LinearLayout
     private lateinit var selectionToolbar: LinearLayout
     private lateinit var selectionCountText: TextView
     private var isSelectionMode = false
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Check if we should redirect to MainActivity
+        if (shouldRedirectToMainActivity()) {
+            redirectToMainActivity()
+            return
+        }
+
         setContentView(R.layout.activity_history)
-        
+        setupEdgeToEdgeInsets(R.id.rootLayout, applyTop = true, applyBottom = false)
+
         historyManager = HistoryManager.getInstance(this)
-        
-        Logger.d(TAG, "HistoryActivity created")
+
+        Logger.d(TAG, "HistoryActivity created (deprecated)")
         setupViews()
+        setupBackPressedCallback()
         observeHistory()
     }
-    
+
+    /**
+     * Determines if this Activity should redirect to MainActivity.
+     *
+     * Returns true if the Activity was launched via an Intent that should
+     * be handled by the new Fragment-based navigation.
+     *
+     * @return true if should redirect, false otherwise
+     */
+    private fun shouldRedirectToMainActivity(): Boolean {
+        // Always redirect unless explicitly disabled for testing
+        return intent?.getBooleanExtra(EXTRA_DISABLE_REDIRECT, false) != true
+    }
+
+    /**
+     * Redirects to MainActivity with the history tab selected.
+     */
+    private fun redirectToMainActivity() {
+        Logger.d(TAG, "Redirecting to MainActivity with history tab")
+        val mainIntent =
+            Intent(this, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_NAVIGATE_HISTORY
+                putExtra(MainActivity.EXTRA_TARGET_FRAGMENT, MainActivity.TARGET_HISTORY)
+                // Preserve any extras from the original intent
+                intent?.extras?.let { putExtras(it) }
+                // Clear the redirect flag to avoid loops
+                removeExtra(EXTRA_DISABLE_REDIRECT)
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+        startActivity(mainIntent)
+        finish()
+    }
+
+    /**
+     * Sets up the back pressed callback using the new OnBackPressedDispatcher API.
+     */
+    private fun setupBackPressedCallback() {
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (isSelectionMode) {
+                        exitSelectionMode()
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            },
+        )
+    }
+
     /**
      * Sets up all view references and click listeners.
      */
@@ -69,57 +137,59 @@ class HistoryActivity : AppCompatActivity() {
         normalToolbar = findViewById(R.id.normalToolbar)
         selectionToolbar = findViewById(R.id.selectionToolbar)
         selectionCountText = findViewById(R.id.selectionCountText)
-        
+
         findViewById<ImageButton>(R.id.backBtn).setOnClickListener {
             finish()
         }
-        
+
         findViewById<ImageButton>(R.id.clearAllBtn).setOnClickListener {
             showClearAllDialog()
         }
-        
+
         // Selection toolbar buttons
         findViewById<ImageButton>(R.id.cancelSelectionBtn).setOnClickListener {
             exitSelectionMode()
         }
-        
+
         findViewById<ImageButton>(R.id.selectAllBtn).setOnClickListener {
             adapter.selectAll()
         }
-        
+
         findViewById<ImageButton>(R.id.deleteSelectedBtn).setOnClickListener {
             showDeleteSelectedDialog()
         }
-        
+
         recyclerView = findViewById(R.id.historyRecyclerView)
         emptyState = findViewById(R.id.emptyState)
-        
-        adapter = HistoryAdapter(
-            onItemClick = { task ->
-                if (isSelectionMode) {
-                    adapter.toggleSelection(task.id)
-                } else {
-                    openTaskDetail(task)
-                }
-            },
-            onItemLongClick = { task ->
-                if (!isSelectionMode) {
-                    enterSelectionMode()
-                    adapter.toggleSelection(task.id)
-                }
-            },
-            onSelectionChanged = { count ->
-                updateSelectionCount(count)
-                if (count == 0 && isSelectionMode) {
-                    exitSelectionMode()
-                }
-            }
-        )
-        
+        setupEdgeToEdgeInsets(recyclerView, applyTop = false, applyBottom = true)
+
+        adapter =
+            HistoryAdapter(
+                onItemClick = { task ->
+                    if (isSelectionMode) {
+                        adapter.toggleSelection(task.id)
+                    } else {
+                        openTaskDetail(task)
+                    }
+                },
+                onItemLongClick = { task ->
+                    if (!isSelectionMode) {
+                        enterSelectionMode()
+                        adapter.toggleSelection(task.id)
+                    }
+                },
+                onSelectionChanged = { count ->
+                    updateSelectionCount(count)
+                    if (count == 0 && isSelectionMode) {
+                        exitSelectionMode()
+                    }
+                },
+            )
+
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
     }
-    
+
     /**
      * Observes the history list and updates the UI accordingly.
      */
@@ -129,7 +199,7 @@ class HistoryActivity : AppCompatActivity() {
                 adapter.submitList(list)
                 emptyState.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
                 recyclerView.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
-                
+
                 // Exit selection mode if list becomes empty
                 if (list.isEmpty() && isSelectionMode) {
                     exitSelectionMode()
@@ -137,7 +207,7 @@ class HistoryActivity : AppCompatActivity() {
             }
         }
     }
-    
+
     /**
      * Enters multi-select mode for batch operations.
      */
@@ -148,7 +218,7 @@ class HistoryActivity : AppCompatActivity() {
         selectionToolbar.visibility = View.VISIBLE
         Logger.d(TAG, "Entered selection mode")
     }
-    
+
     /**
      * Exits multi-select mode and clears selection.
      */
@@ -160,7 +230,7 @@ class HistoryActivity : AppCompatActivity() {
         selectionToolbar.visibility = View.GONE
         Logger.d(TAG, "Exited selection mode")
     }
-    
+
     /**
      * Updates the selection count display in the toolbar.
      *
@@ -169,7 +239,7 @@ class HistoryActivity : AppCompatActivity() {
     private fun updateSelectionCount(count: Int) {
         selectionCountText.text = getString(R.string.history_selected_count, count)
     }
-    
+
     /**
      * Opens the task detail activity for the given task.
      *
@@ -181,15 +251,16 @@ class HistoryActivity : AppCompatActivity() {
         intent.putExtra(HistoryDetailActivity.EXTRA_TASK_ID, task.id)
         startActivity(intent)
     }
-    
+
     /**
      * Shows a confirmation dialog for deleting selected tasks.
      */
     private fun showDeleteSelectedDialog() {
         val selectedIds = adapter.getSelectedIds()
         if (selectedIds.isEmpty()) return
-        
-        AlertDialog.Builder(this)
+
+        AlertDialog
+            .Builder(this)
             .setTitle(R.string.history_delete_selected)
             .setMessage(getString(R.string.history_delete_selected_confirm, selectedIds.size))
             .setPositiveButton(R.string.dialog_confirm) { _, _ ->
@@ -197,16 +268,16 @@ class HistoryActivity : AppCompatActivity() {
                     historyManager.deleteTasks(selectedIds)
                     exitSelectionMode()
                 }
-            }
-            .setNegativeButton(R.string.dialog_cancel, null)
+            }.setNegativeButton(R.string.dialog_cancel, null)
             .show()
     }
-    
+
     /**
      * Shows a confirmation dialog for clearing all history.
      */
     private fun showClearAllDialog() {
-        AlertDialog.Builder(this)
+        AlertDialog
+            .Builder(this)
             .setTitle(R.string.history_clear_all)
             .setMessage(R.string.history_clear_confirm)
             .setPositiveButton(R.string.dialog_confirm) { _, _ ->
@@ -214,25 +285,20 @@ class HistoryActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     historyManager.clearAllHistory()
                 }
-            }
-            .setNegativeButton(R.string.dialog_cancel, null)
+            }.setNegativeButton(R.string.dialog_cancel, null)
             .show()
     }
-    
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (isSelectionMode) {
-            exitSelectionMode()
-        } else {
-            super.onBackPressed()
-        }
-    }
-    
+
     companion object {
         private const val TAG = "HistoryActivity"
+
+        /**
+         * Extra key to disable redirect to MainActivity.
+         * Used for testing purposes only.
+         */
+        const val EXTRA_DISABLE_REDIRECT = "disable_redirect"
     }
 }
-
 
 /**
  * RecyclerView adapter for history list with multi-select support.
@@ -248,14 +314,13 @@ class HistoryActivity : AppCompatActivity() {
 class HistoryAdapter(
     private val onItemClick: (TaskHistory) -> Unit,
     private val onItemLongClick: (TaskHistory) -> Unit,
-    private val onSelectionChanged: (Int) -> Unit
+    private val onSelectionChanged: (Int) -> Unit,
 ) : RecyclerView.Adapter<HistoryAdapter.ViewHolder>() {
-    
     private var items: List<TaskHistory> = emptyList()
     private val selectedIds = mutableSetOf<String>()
     private var isSelectionMode = false
     private val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-    
+
     /**
      * Submits a new list of items to display.
      *
@@ -267,7 +332,7 @@ class HistoryAdapter(
         selectedIds.retainAll(list.map { it.id }.toSet())
         notifyDataSetChanged()
     }
-    
+
     /**
      * Enables or disables selection mode.
      *
@@ -277,7 +342,7 @@ class HistoryAdapter(
         isSelectionMode = enabled
         notifyDataSetChanged()
     }
-    
+
     /**
      * Toggles the selection state of a task.
      *
@@ -292,7 +357,7 @@ class HistoryAdapter(
         notifyDataSetChanged()
         onSelectionChanged(selectedIds.size)
     }
-    
+
     /**
      * Selects all items in the list.
      */
@@ -302,7 +367,7 @@ class HistoryAdapter(
         notifyDataSetChanged()
         onSelectionChanged(selectedIds.size)
     }
-    
+
     /**
      * Clears all selections.
      */
@@ -311,26 +376,28 @@ class HistoryAdapter(
         notifyDataSetChanged()
         onSelectionChanged(0)
     }
-    
+
     /**
      * Gets the set of currently selected task IDs.
      *
      * @return Immutable copy of selected task IDs
      */
     fun getSelectedIds(): Set<String> = selectedIds.toSet()
-    
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_history_task, parent, false)
+        val view =
+            LayoutInflater
+                .from(parent.context)
+                .inflate(R.layout.item_history_task, parent, false)
         return ViewHolder(view)
     }
-    
+
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(items[position])
     }
-    
+
     override fun getItemCount(): Int = items.size
-    
+
     /**
      * ViewHolder for history list items.
      *
@@ -343,7 +410,7 @@ class HistoryAdapter(
         private val timeText: TextView = itemView.findViewById(R.id.timeText)
         private val stepsText: TextView = itemView.findViewById(R.id.stepsText)
         private val durationText: TextView = itemView.findViewById(R.id.durationText)
-        
+
         /**
          * Binds task data to the view.
          *
@@ -353,38 +420,39 @@ class HistoryAdapter(
             taskDescription.text = task.taskDescription
             timeText.text = dateFormat.format(Date(task.startTime))
             stepsText.text = itemView.context.getString(R.string.history_steps_format, task.stepCount)
-            durationText.text = itemView.context.getString(
-                R.string.history_duration_format,
-                formatDuration(task.duration)
-            )
-            
+            durationText.text =
+                itemView.context.getString(
+                    R.string.history_duration_format,
+                    formatDuration(task.duration),
+                )
+
             if (task.success) {
                 statusIcon.setImageResource(R.drawable.ic_check_circle)
                 statusIcon.setColorFilter(
-                    ContextCompat.getColor(itemView.context, R.color.status_success)
+                    ContextCompat.getColor(itemView.context, R.color.status_success),
                 )
             } else {
                 statusIcon.setImageResource(R.drawable.ic_error)
                 statusIcon.setColorFilter(
-                    ContextCompat.getColor(itemView.context, R.color.status_error)
+                    ContextCompat.getColor(itemView.context, R.color.status_error),
                 )
             }
-            
+
             // Handle selection mode
             checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
             checkBox.isChecked = selectedIds.contains(task.id)
-            
+
             checkBox.setOnClickListener {
                 toggleSelection(task.id)
             }
-            
+
             itemView.setOnClickListener { onItemClick(task) }
             itemView.setOnLongClickListener {
                 onItemLongClick(task)
                 true
             }
         }
-        
+
         /**
          * Formats duration in milliseconds to a human-readable string.
          *

@@ -20,7 +20,11 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:max="100"
-        android:progress="0" />
+        android:progress="0"
+        android:indeterminateTint="?attr/colorPrimary"
+        android:progressTint="?attr/colorPrimary"
+        android:secondaryProgressTint="?attr/colorPrimary"
+        android:progressBackgroundTint="@color/switch_track_unchecked" />
 
     <TextView
         android:id="@+id/downloadProgressText"

@@ -39,30 +39,32 @@ import com.kevinluo.autoglm.util.Logger
  *
  */
 class AutoGLMKeyboardService : InputMethodService() {
-
     /**
      * BroadcastReceiver for handling text input commands.
      *
      * Listens for input and clear text broadcasts and processes them
      * through the InputConnection.
      */
-    private val inputReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            Logger.d(TAG, "Received broadcast: ${intent.action}")
-            
-            when (intent.action) {
-                ACTION_INPUT_TEXT, ACTION_INPUT_B64 -> {
-                    handleInputText(intent)
-                }
-                ACTION_CLEAR_TEXT -> {
-                    handleClearText()
-                }
-                ACTION_INPUT_CHARS -> {
-                    handleInputChars(intent)
+    private val inputReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                Logger.d(TAG, "Received broadcast: ${intent.action}")
+
+                when (intent.action) {
+                    ACTION_INPUT_TEXT, ACTION_INPUT_B64 -> {
+                        handleInputText(intent)
+                    }
+
+                    ACTION_CLEAR_TEXT -> {
+                        handleClearText()
+                    }
+
+                    ACTION_INPUT_CHARS -> {
+                        handleInputChars(intent)
+                    }
                 }
             }
         }
-    }
 
     /**
      * Flag indicating whether the receiver is currently registered.
@@ -94,40 +96,50 @@ class AutoGLMKeyboardService : InputMethodService() {
      */
     override fun onCreateInputView(): View {
         Logger.d(TAG, "onCreateInputView called")
-        
+
         // Register receiver when input view is created
         registerInputReceiver()
-        
+
         // Create a minimal status view
         val view = layoutInflater.inflate(R.layout.keyboard_autoglm, null)
-        
+
         // Setup switch keyboard button
-        switchButton = view.findViewById<ImageButton>(R.id.btn_switch_keyboard)?.apply {
-            setOnClickListener { switchToNextKeyboard() }
-        }
-        
+        switchButton =
+            view.findViewById<ImageButton>(R.id.btn_switch_keyboard)?.apply {
+                setOnClickListener { switchToNextKeyboard() }
+            }
+
         // Update button visibility based on system UI
         updateSwitchButtonVisibility()
-        
+
         return view
     }
 
     /**
      * Updates the visibility of the switch keyboard button.
-     * 
+     *
      * Only shows the button if:
      * 1. System doesn't show its own switch button (shouldOfferSwitchingToNextInputMethod)
      * 2. There are multiple input methods enabled
+     *
+     * Note: shouldOfferSwitchingToNextInputMethod requires API 28+.
+     * On older devices, we always show the switch button.
      */
     private fun updateSwitchButtonVisibility() {
-        val shouldShow = !shouldOfferSwitchingToNextInputMethod()
-        Logger.d(TAG, "Switch button visibility: shouldShow=$shouldShow, systemOffers=${shouldOfferSwitchingToNextInputMethod()}")
+        val shouldShow =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                !shouldOfferSwitchingToNextInputMethod()
+            } else {
+                // On API < 28, always show the switch button
+                true
+            }
+        Logger.d(TAG, "Switch button visibility: shouldShow=$shouldShow")
         switchButton?.visibility = if (shouldShow) View.VISIBLE else View.GONE
     }
 
     /**
      * Switches to the next input method (keyboard).
-     * 
+     *
      * This allows users to quickly switch to another keyboard without
      * going through system settings.
      */
@@ -177,10 +189,10 @@ class AutoGLMKeyboardService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         Logger.d(TAG, "onStartInputView: restarting=$restarting")
-        
+
         // Ensure receiver is registered
         registerInputReceiver()
-        
+
         // Update switch button visibility (system state may have changed)
         updateSwitchButtonVisibility()
     }
@@ -214,12 +226,13 @@ class AutoGLMKeyboardService : InputMethodService() {
             return
         }
 
-        val filter = IntentFilter().apply {
-            addAction(ACTION_INPUT_TEXT)
-            addAction(ACTION_INPUT_B64)
-            addAction(ACTION_CLEAR_TEXT)
-            addAction(ACTION_INPUT_CHARS)
-        }
+        val filter =
+            IntentFilter().apply {
+                addAction(ACTION_INPUT_TEXT)
+                addAction(ACTION_INPUT_B64)
+                addAction(ACTION_CLEAR_TEXT)
+                addAction(ACTION_INPUT_CHARS)
+            }
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -260,16 +273,17 @@ class AutoGLMKeyboardService : InputMethodService() {
      * @param intent The broadcast intent containing the encoded text
      */
     private fun handleInputText(intent: Intent) {
-        val encodedText = intent.getStringExtra(EXTRA_MSG) ?: run {
-            Logger.w(TAG, "No text in input broadcast")
-            return
-        }
+        val encodedText =
+            intent.getStringExtra(EXTRA_MSG) ?: run {
+                Logger.w(TAG, "No text in input broadcast")
+                return
+            }
 
         try {
             val decodedBytes = Base64.decode(encodedText, Base64.DEFAULT)
             val text = String(decodedBytes, Charsets.UTF_8)
             Logger.d(TAG, "Decoded text: '${text.take(50)}${if (text.length > 50) "..." else ""}'")
-            
+
             commitText(text)
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to decode Base64 text", e)
@@ -282,10 +296,11 @@ class AutoGLMKeyboardService : InputMethodService() {
      * @param intent The broadcast intent containing the text
      */
     private fun handleInputChars(intent: Intent) {
-        val text = intent.getStringExtra(EXTRA_MSG) ?: run {
-            Logger.w(TAG, "No text in input chars broadcast")
-            return
-        }
+        val text =
+            intent.getStringExtra(EXTRA_MSG) ?: run {
+                Logger.w(TAG, "No text in input chars broadcast")
+                return
+            }
 
         Logger.d(TAG, "Input chars: '${text.take(50)}${if (text.length > 50) "..." else ""}'")
         commitText(text)
@@ -298,19 +313,20 @@ class AutoGLMKeyboardService : InputMethodService() {
      */
     private fun handleClearText() {
         Logger.d(TAG, "Clearing text")
-        
-        val ic = currentInputConnection ?: run {
-            Logger.w(TAG, "No input connection for clear text")
-            return
-        }
+
+        val ic =
+            currentInputConnection ?: run {
+                Logger.w(TAG, "No input connection for clear text")
+                return
+            }
 
         try {
             // Perform select all
             ic.performContextMenuAction(android.R.id.selectAll)
-            
+
             // Delete selected text by committing empty string
             ic.commitText("", 0)
-            
+
             Logger.d(TAG, "Text cleared successfully")
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to clear text", e)
@@ -323,10 +339,11 @@ class AutoGLMKeyboardService : InputMethodService() {
      * @param text The text to commit
      */
     private fun commitText(text: String) {
-        val ic = currentInputConnection ?: run {
-            Logger.w(TAG, "No input connection for commit text")
-            return
-        }
+        val ic =
+            currentInputConnection ?: run {
+                Logger.w(TAG, "No input connection for commit text")
+                return
+            }
 
         try {
             ic.commitText(text, 1)

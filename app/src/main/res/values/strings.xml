@@ -1,6 +1,21 @@
 <resources>
     <string name="app_name">AutoGLM For Android</string>
     
+    <!-- Bottom Navigation -->
+    <string name="nav_home">首页</string>
+    <string name="nav_history">历史</string>
+    <string name="nav_settings">设置</string>
+    
+    <!-- Permissions Center -->
+    <string name="permissions_center_title">权限状态</string>
+    <string name="permissions_summary_default">检查中...</string>
+    <string name="permissions_summary_all_granted">全部已授权</string>
+    <string name="permissions_summary_partial">%d/%d 已授权</string>
+    <string name="permission_action_grant">授权</string>
+    <string name="permission_action_enable">启用</string>
+    <string name="permission_granted">已授权</string>
+    <string name="permission_not_granted">未授权</string>
+    
     <!-- Shizuku Status -->
     <string name="shizuku_status_title">Shizuku 状态</string>
     <string name="shizuku_status_unknown">未知</string>
@@ -68,6 +83,8 @@
     <string name="toast_task_started">任务已开始</string>
     <string name="toast_task_cancelled">任务已取消</string>
     <string name="toast_overlay_permission_required">需要悬浮窗权限</string>
+    <string name="toast_task_already_running">已有任务正在执行</string>
+    <string name="toast_phone_agent_not_ready">代理未就绪，请稍后重试</string>
     
     <!-- Settings Activity -->
     <string name="settings_title">设置</string>
@@ -172,6 +189,7 @@
     <string name="floating_waiting_confirm">等待确认</string>
     <string name="floating_open">打开悬浮窗</string>
     <string name="floating_new_task">新任务</string>
+    <string name="floating_thinking">正在思考...</string>
     
     <!-- Quick Actions -->
     <string name="quick_action_floating">悬浮窗</string>
@@ -305,6 +323,6 @@
     <string name="voice_network_error">网络错误</string>
     <string name="voice_unknown_error">未知错误</string>
     <string name="voice_downloading">正在下载...</string>
-    <string name="voice_download_progress">下载进度: %1$d%%</string>
+    <string name="voice_download_progress">下载进度: %1$d MB / %2$d MB</string>
     <string name="voice_download_confirm">下载确认</string>
 </resources>

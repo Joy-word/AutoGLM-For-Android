@@ -2,10 +2,10 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
-    android:fitsSystemWindows="true"
     tools:context=".settings.SettingsActivity">
 
     <LinearLayout
@@ -40,9 +40,31 @@
                 android:textSize="20sp"
                 android:fontFamily="sans-serif-medium" />
 
+            <!-- Reset Button -->
+            <ImageButton
+                android:id="@+id/resetButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings_reset"
+                android:src="@drawable/ic_refresh"
+                app:tint="@color/icon_secondary" />
+
+            <!-- Save Button -->
+            <ImageButton
+                android:id="@+id/saveButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings_save"
+                android:src="@drawable/ic_save"
+                app:tint="@color/icon_secondary" />
+
         </LinearLayout>
 
         <ScrollView
+            android:id="@+id/scrollView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:fillViewport="true"
@@ -208,7 +230,7 @@
                     <!-- Test Connection Button -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/testConnectionButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        style="@style/Widget.App.Button.Secondary"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:layout_marginTop="16dp"
@@ -337,19 +359,19 @@
 
                         <RadioButton
                             android:id="@+id/languageChinese"
+                            style="@style/Widget.App.RadioButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="32dp"
-                            android:buttonTint="@color/primary"
                             android:text="@string/settings_language_chinese"
                             android:textColor="@color/text_primary"
                             android:textSize="14sp" />
 
                         <RadioButton
                             android:id="@+id/languageEnglish"
+                            style="@style/Widget.App.RadioButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:buttonTint="@color/primary"
                             android:text="@string/settings_language_english"
                             android:textColor="@color/text_primary"
                             android:textSize="14sp" />
@@ -531,7 +553,7 @@
                     <!-- Download/Delete Button -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnVoiceModelAction"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        style="@style/Widget.App.Button.Secondary"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:layout_marginTop="12dp"
@@ -613,6 +635,7 @@
 
                         <com.google.android.material.slider.Slider
                             android:id="@+id/sensitivitySlider"
+                            style="@style/Widget.App.Slider"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -727,7 +750,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnEditPromptCn"
-                            style="@style/Widget.Material3.Button.TextButton"
+                            style="@style/Widget.App.Button.Text"
                             android:layout_width="wrap_content"
                             android:layout_height="36dp"
                             android:text="@string/settings_system_prompt_edit"
@@ -762,7 +785,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnEditPromptEn"
-                            style="@style/Widget.Material3.Button.TextButton"
+                            style="@style/Widget.App.Button.Text"
                             android:layout_width="wrap_content"
                             android:layout_height="36dp"
                             android:text="@string/settings_system_prompt_edit"
@@ -837,7 +860,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnExportLogs"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            style="@style/Widget.App.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="48dp"
                             android:layout_weight="1"
@@ -851,11 +874,10 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClearLogs"
-                            style="@style/Widget.Material3.Button.TextButton"
+                            style="@style/Widget.App.Button.Text.Secondary"
                             android:layout_width="wrap_content"
                             android:layout_height="48dp"
-                            android:text="@string/settings_clear_logs"
-                            android:textColor="@color/text_secondary" />
+                            android:text="@string/settings_clear_logs" />
 
                     </LinearLayout>
 
@@ -863,39 +885,9 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Action Buttons -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="80dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/resetButton"
-                    style="@style/Widget.App.Button.Tonal"
-                    android:layout_width="wrap_content"
-                    android:layout_height="52dp"
-                    android:text="@string/settings_reset"
-                    app:icon="@drawable/ic_refresh"
-                    app:iconGravity="textStart"
-                    app:iconPadding="8dp" />
-
-            </LinearLayout>
-
         </LinearLayout>
     </ScrollView>
 
     </LinearLayout>
-
-    <!-- Floating Save Button -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/saveButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:contentDescription="@string/settings_save"
-        app:srcCompat="@drawable/ic_save" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

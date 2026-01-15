@@ -14,20 +14,18 @@ import com.kevinluo.autoglm.util.Logger
  *
  */
 object KeyboardHelper {
-
     private const val TAG = "KeyboardHelper"
-    
+
     /** AutoGLM package name. */
     private const val PACKAGE_NAME = "com.kevinluo.autoglm"
-    
+
     /** AutoGLM Keyboard IME ID (Android system format). */
     const val IME_ID = "$PACKAGE_NAME/.input.AutoGLMKeyboardService"
-    
+
     /**
      * Checks if the given IME ID belongs to AutoGLM Keyboard.
      */
-    fun isAutoGLMKeyboard(imeId: String): Boolean = 
-        imeId.startsWith("$PACKAGE_NAME/")
+    fun isAutoGLMKeyboard(imeId: String): Boolean = imeId.startsWith("$PACKAGE_NAME/")
 
     /**
      * Keyboard status enumeration.
@@ -35,8 +33,9 @@ object KeyboardHelper {
     enum class KeyboardStatus {
         /** Keyboard is enabled and ready to use. */
         ENABLED,
+
         /** Keyboard is installed but not enabled in system settings. */
-        NOT_ENABLED
+        NOT_ENABLED,
     }
 
     /**
@@ -54,7 +53,8 @@ object KeyboardHelper {
         for (ime in enabledInputMethods) {
             Logger.d(TAG, "Found IME: package=${ime.packageName}, service=${ime.serviceName}")
             if (ime.packageName == PACKAGE_NAME &&
-                ime.serviceName.endsWith(".AutoGLMKeyboardService")) {
+                ime.serviceName.endsWith(".AutoGLMKeyboardService")
+            ) {
                 Logger.d(TAG, "AutoGLM Keyboard is enabled")
                 return KeyboardStatus.ENABLED
             }
@@ -70,9 +70,7 @@ object KeyboardHelper {
      * @param context Application context
      * @return true if AutoGLM Keyboard is enabled
      */
-    fun isKeyboardAvailable(context: Context): Boolean {
-        return getAutoGLMKeyboardStatus(context) == KeyboardStatus.ENABLED
-    }
+    fun isKeyboardAvailable(context: Context): Boolean = getAutoGLMKeyboardStatus(context) == KeyboardStatus.ENABLED
 
     /**
      * Gets a human-readable status message for keyboard availability.
@@ -80,11 +78,9 @@ object KeyboardHelper {
      * @param context Application context
      * @return Status message describing keyboard availability
      */
-    fun getKeyboardStatusMessage(context: Context): String {
-        return when (getAutoGLMKeyboardStatus(context)) {
-            KeyboardStatus.ENABLED -> "AutoGLM Keyboard 已启用"
-            KeyboardStatus.NOT_ENABLED -> "请启用 AutoGLM Keyboard"
-        }
+    fun getKeyboardStatusMessage(context: Context): String = when (getAutoGLMKeyboardStatus(context)) {
+        KeyboardStatus.ENABLED -> "AutoGLM Keyboard 已启用"
+        KeyboardStatus.NOT_ENABLED -> "请启用 AutoGLM Keyboard"
     }
 
     /**

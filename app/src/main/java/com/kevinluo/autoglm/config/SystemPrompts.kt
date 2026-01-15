@@ -21,7 +21,6 @@ import java.util.Locale
  *
  */
 object SystemPrompts {
-
     /** Custom Chinese prompt set by user, null means use default. */
     private var customChinesePrompt: String? = null
 
@@ -92,8 +91,7 @@ object SystemPrompts {
      *
      * @return The Chinese prompt template containing {date} placeholder
      */
-    fun getChinesePromptTemplate(): String {
-        return """今天的日期是: {date}
+    fun getChinesePromptTemplate(): String = """今天的日期是: {date}
 你是一个智能体分析专家，可以根据操作历史和当前状态图执行一系列操作来完成任务。
 你必须严格按照要求输出以下格式：
 <think>{think}</think>
@@ -181,7 +179,6 @@ object SystemPrompts {
 18. 如果没有合适的搜索结果，可能是因为搜索页面不对，请返回到搜索页面的上一级尝试重新搜索，如果尝试三次返回上一级搜索后仍然没有符合要求的结果，执行 finish(message="原因")。
 19. 在结束任务前请一定要仔细检查任务是否完整准确的完成，如果出现错选、漏选、多选的情况，请返回之前的步骤进行纠正。
 """
-    }
 
     /**
      * Gets the English system prompt with current date.
@@ -220,8 +217,7 @@ object SystemPrompts {
      *
      * @return The English prompt template containing {date} placeholder
      */
-    fun getEnglishPromptTemplate(): String {
-        return """The current date: {date}
+    fun getEnglishPromptTemplate(): String = """The current date: {date}
 # Setup
 You are a professional Android operation agent assistant that can fulfill the user's high-level instructions. Given a screenshot of the Android interface at each step, you first analyze the situation, then plan the best course of action using Python-style pseudo-code.
 
@@ -397,8 +393,7 @@ REMEMBER:
 - Only ONE LINE of action in <answer> part per response: Each step must contain exactly one line of executable code.
 - Generate execution code strictly according to format requirements.
 """
-    }
-    
+
     /**
      * Gets the system prompt for the specified language.
      *
@@ -410,11 +405,9 @@ REMEMBER:
      *                 Defaults to Chinese for unrecognized codes.
      * @return The system prompt string for the specified language
      */
-    fun getPrompt(language: String): String {
-        return when (language.lowercase()) {
-            "en", "english" -> getEnglishPrompt()
-            else -> getChinesePrompt()
-        }
+    fun getPrompt(language: String): String = when (language.lowercase()) {
+        "en", "english" -> getEnglishPrompt()
+        else -> getChinesePrompt()
     }
 
     /**
@@ -430,10 +423,10 @@ REMEMBER:
         val month = calendar.get(Calendar.MONTH) + 1
         val day = calendar.get(Calendar.DAY_OF_MONTH)
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-        
+
         val weekdayNames = arrayOf("星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六")
         val weekday = weekdayNames[dayOfWeek - 1]
-        
+
         return "${year}年${month.toString().padStart(2, '0')}月${day.toString().padStart(2, '0')}日 $weekday"
     }
 

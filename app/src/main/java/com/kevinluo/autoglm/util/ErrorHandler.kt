@@ -22,7 +22,6 @@ import com.kevinluo.autoglm.model.NetworkError
  *
  */
 object ErrorHandler {
-
     /**
      * Error categories for classification.
      *
@@ -31,18 +30,24 @@ object ErrorHandler {
     enum class ErrorCategory {
         /** Network-related errors (connection, timeout, server errors). */
         NETWORK,
+
         /** Permission-related errors (missing permissions, Shizuku issues). */
         PERMISSION,
+
         /** Action execution errors (tap, swipe, type failures). */
         ACTION,
+
         /** Screenshot capture errors. */
         SCREENSHOT,
+
         /** Parsing errors (JSON, model response parsing). */
         PARSING,
+
         /** Configuration errors (invalid settings). */
         CONFIGURATION,
+
         /** Unknown or unexpected errors. */
-        UNKNOWN
+        UNKNOWN,
     }
 
     /**
@@ -59,9 +64,9 @@ object ErrorHandler {
         val userMessage: String,
         val technicalMessage: String,
         val isRetryable: Boolean,
-        val originalException: Throwable? = null
+        val originalException: Throwable? = null,
     )
-    
+
     /**
      * Handles a network error and returns a user-friendly error.
      *
@@ -73,34 +78,45 @@ object ErrorHandler {
         Logger.logNetworkError(error.message ?: "Unknown network error")
 
         return when (error) {
-            is NetworkError.ConnectionFailed -> HandledError(
-                category = ErrorCategory.NETWORK,
-                userMessage = "无法连接到服务器，请检查网络连接",
-                technicalMessage = error.message,
-                isRetryable = true,
-                originalException = error
-            )
-            is NetworkError.Timeout -> HandledError(
-                category = ErrorCategory.NETWORK,
-                userMessage = "请求超时，请稍后重试",
-                technicalMessage = "Request timed out after ${error.timeoutMs}ms",
-                isRetryable = true,
-                originalException = error
-            )
-            is NetworkError.ServerError -> HandledError(
-                category = ErrorCategory.NETWORK,
-                userMessage = "服务器错误 (${error.statusCode})，请稍后重试",
-                technicalMessage = "Server error ${error.statusCode}: ${error.message}",
-                isRetryable = error.statusCode >= 500,
-                originalException = error
-            )
-            is NetworkError.ParseError -> HandledError(
-                category = ErrorCategory.PARSING,
-                userMessage = "无法解析服务器响应",
-                technicalMessage = "Parse error: ${error.rawResponse.take(MAX_RAW_RESPONSE_LENGTH)}",
-                isRetryable = false,
-                originalException = error
-            )
+            is NetworkError.ConnectionFailed -> {
+                HandledError(
+                    category = ErrorCategory.NETWORK,
+                    userMessage = "无法连接到服务器，请检查网络连接",
+                    technicalMessage = error.message,
+                    isRetryable = true,
+                    originalException = error,
+                )
+            }
+
+            is NetworkError.Timeout -> {
+                HandledError(
+                    category = ErrorCategory.NETWORK,
+                    userMessage = "请求超时，请稍后重试",
+                    technicalMessage = "Request timed out after ${error.timeoutMs}ms",
+                    isRetryable = true,
+                    originalException = error,
+                )
+            }
+
+            is NetworkError.ServerError -> {
+                HandledError(
+                    category = ErrorCategory.NETWORK,
+                    userMessage = "服务器错误 (${error.statusCode})，请稍后重试",
+                    technicalMessage = "Server error ${error.statusCode}: ${error.message}",
+                    isRetryable = error.statusCode >= 500,
+                    originalException = error,
+                )
+            }
+
+            is NetworkError.ParseError -> {
+                HandledError(
+                    category = ErrorCategory.PARSING,
+                    userMessage = "无法解析服务器响应",
+                    technicalMessage = "Parse error: ${error.rawResponse.take(MAX_RAW_RESPONSE_LENGTH)}",
+                    isRetryable = false,
+                    originalException = error,
+                )
+            }
         }
     }
 
@@ -113,11 +129,7 @@ object ErrorHandler {
      * @return HandledError with appropriate user and technical messages
      *
      */
-    fun handleActionError(
-        actionType: String,
-        error: String,
-        exception: Throwable? = null
-    ): HandledError {
+    fun handleActionError(actionType: String, error: String, exception: Throwable? = null): HandledError {
         Logger.e(TAG, "Action error [$actionType]: $error", exception ?: Exception(error))
 
         return HandledError(
@@ -125,7 +137,7 @@ object ErrorHandler {
             userMessage = "操作执行失败: $actionType",
             technicalMessage = error,
             isRetryable = true,
-            originalException = exception
+            originalException = exception,
         )
     }
 
@@ -141,7 +153,7 @@ object ErrorHandler {
     fun handleScreenshotError(
         error: String,
         isSensitive: Boolean = false,
-        exception: Throwable? = null
+        exception: Throwable? = null,
     ): HandledError {
         Logger.e(TAG, "Screenshot error: $error", exception ?: Exception(error))
 
@@ -151,7 +163,7 @@ object ErrorHandler {
                 userMessage = "当前屏幕受保护，无法截图",
                 technicalMessage = "Sensitive screen detected",
                 isRetryable = false,
-                originalException = exception
+                originalException = exception,
             )
         } else {
             HandledError(
@@ -159,7 +171,7 @@ object ErrorHandler {
                 userMessage = "截图失败，请重试",
                 technicalMessage = error,
                 isRetryable = true,
-                originalException = exception
+                originalException = exception,
             )
         }
     }
@@ -172,10 +184,7 @@ object ErrorHandler {
      * @return HandledError with appropriate user and technical messages
      *
      */
-    fun handlePermissionError(
-        permission: String,
-        exception: Throwable? = null
-    ): HandledError {
+    fun handlePermissionError(permission: String, exception: Throwable? = null): HandledError {
         Logger.e(TAG, "Permission error: $permission", exception ?: Exception("Missing permission: $permission"))
 
         return HandledError(
@@ -183,7 +192,7 @@ object ErrorHandler {
             userMessage = "缺少必要权限: $permission",
             technicalMessage = "Missing permission: $permission",
             isRetryable = false,
-            originalException = exception
+            originalException = exception,
         )
     }
 
@@ -195,10 +204,7 @@ object ErrorHandler {
      * @return HandledError with appropriate user and technical messages
      *
      */
-    fun handleShizukuError(
-        error: String,
-        exception: Throwable? = null
-    ): HandledError {
+    fun handleShizukuError(error: String, exception: Throwable? = null): HandledError {
         Logger.e(TAG, "Shizuku error: $error", exception ?: Exception(error))
 
         return HandledError(
@@ -206,7 +212,7 @@ object ErrorHandler {
             userMessage = "Shizuku 服务不可用，请确保 Shizuku 已启动并授权",
             technicalMessage = error,
             isRetryable = true,
-            originalException = exception
+            originalException = exception,
         )
     }
 
@@ -219,15 +225,11 @@ object ErrorHandler {
      * @return HandledError with appropriate user and technical messages
      *
      */
-    fun handleParsingError(
-        input: String,
-        error: String,
-        exception: Throwable? = null
-    ): HandledError {
+    fun handleParsingError(input: String, error: String, exception: Throwable? = null): HandledError {
         Logger.e(
             TAG,
             "Parsing error: $error, input: ${input.take(MAX_INPUT_LOG_LENGTH)}",
-            exception ?: Exception(error)
+            exception ?: Exception(error),
         )
 
         return HandledError(
@@ -235,7 +237,7 @@ object ErrorHandler {
             userMessage = "无法解析模型响应",
             technicalMessage = "Parse error: $error",
             isRetryable = false,
-            originalException = exception
+            originalException = exception,
         )
     }
 
@@ -247,17 +249,14 @@ object ErrorHandler {
      * @return HandledError with appropriate user and technical messages
      *
      */
-    fun handleConfigurationError(
-        setting: String,
-        error: String
-    ): HandledError {
+    fun handleConfigurationError(setting: String, error: String): HandledError {
         Logger.e(TAG, "Configuration error [$setting]: $error")
 
         return HandledError(
             category = ErrorCategory.CONFIGURATION,
             userMessage = "配置错误: $setting",
             technicalMessage = error,
-            isRetryable = false
+            isRetryable = false,
         )
     }
 
@@ -269,10 +268,7 @@ object ErrorHandler {
      * @return HandledError with appropriate user and technical messages
      *
      */
-    fun handleUnknownError(
-        error: String,
-        exception: Throwable? = null
-    ): HandledError {
+    fun handleUnknownError(error: String, exception: Throwable? = null): HandledError {
         Logger.e(TAG, "Unknown error: $error", exception ?: Exception(error))
 
         return HandledError(
@@ -280,7 +276,7 @@ object ErrorHandler {
             userMessage = "发生未知错误，请重试",
             technicalMessage = error,
             isRetryable = true,
-            originalException = exception
+            originalException = exception,
         )
     }
 
@@ -298,7 +294,7 @@ object ErrorHandler {
             category = ErrorCategory.ACTION,
             userMessage = "找不到应用: $appName",
             technicalMessage = "App not found: $appName",
-            isRetryable = false
+            isRetryable = false,
         )
     }
 
@@ -309,12 +305,10 @@ object ErrorHandler {
      * @return Formatted error message suitable for UI display
      *
      */
-    fun formatErrorForDisplay(error: HandledError): String {
-        return buildString {
-            append(error.userMessage)
-            if (error.isRetryable) {
-                append(" (可重试)")
-            }
+    fun formatErrorForDisplay(error: HandledError): String = buildString {
+        append(error.userMessage)
+        if (error.isRetryable) {
+            append(" (可重试)")
         }
     }
 
@@ -325,13 +319,11 @@ object ErrorHandler {
      * @return Formatted error message suitable for log output
      *
      */
-    fun formatErrorForLog(error: HandledError): String {
-        return buildString {
-            append("[${error.category}] ")
-            append(error.technicalMessage)
-            error.originalException?.let {
-                append("\nStack trace: ${it.stackTraceToString().take(MAX_STACK_TRACE_LENGTH)}")
-            }
+    fun formatErrorForLog(error: HandledError): String = buildString {
+        append("[${error.category}] ")
+        append(error.technicalMessage)
+        error.originalException?.let {
+            append("\nStack trace: ${it.stackTraceToString().take(MAX_STACK_TRACE_LENGTH)}")
         }
     }
 

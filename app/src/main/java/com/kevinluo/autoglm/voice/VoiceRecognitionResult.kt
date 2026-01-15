@@ -12,5 +12,5 @@ data class VoiceRecognitionResult(
     val text: String,
     val confidence: Float = 1.0f,
     val language: String = "auto",
-    val durationMs: Long = 0
+    val durationMs: Long = 0,
 )

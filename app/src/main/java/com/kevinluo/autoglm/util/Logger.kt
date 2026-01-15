@@ -24,7 +24,6 @@ import android.util.Log
  *
  */
 object Logger {
-
     /**
      * Log levels for filtering output.
      *
@@ -33,14 +32,18 @@ object Logger {
     enum class Level {
         /** Most verbose level, for detailed debugging information. */
         VERBOSE,
+
         /** Debug level, for development-time debugging. */
         DEBUG,
+
         /** Info level, for general informational messages. */
         INFO,
+
         /** Warning level, for potentially problematic situations. */
         WARN,
+
         /** Error level, for error conditions. */
-        ERROR
+        ERROR,
     }
 
     /**
@@ -52,7 +55,7 @@ object Logger {
      * Whether to include timestamps in log messages.
      */
     var includeTimestamp: Boolean = false
-    
+
     /**
      * Whether to write logs to file in addition to Logcat.
      */
@@ -233,11 +236,12 @@ object Logger {
      *
      */
     fun logTaskStart(taskDescription: String) {
-        val truncated = if (taskDescription.length > MAX_TASK_DESCRIPTION_LENGTH) {
-            "${taskDescription.take(MAX_TASK_DESCRIPTION_LENGTH)}..."
-        } else {
-            taskDescription
-        }
+        val truncated =
+            if (taskDescription.length > MAX_TASK_DESCRIPTION_LENGTH) {
+                "${taskDescription.take(MAX_TASK_DESCRIPTION_LENGTH)}..."
+            } else {
+                taskDescription
+            }
         i(TAG_AGENT, "Task started: $truncated")
     }
 
@@ -263,7 +267,7 @@ object Logger {
      *
      */
     fun logScreenshot(width: Int, height: Int, isSensitive: Boolean) {
-        d(TAG_SCREENSHOT, "Captured ${width}x${height}, sensitive=$isSensitive")
+        d(TAG_SCREENSHOT, "Captured ${width}x$height, sensitive=$isSensitive")
     }
 
     /**
@@ -273,11 +277,12 @@ object Logger {
      *
      */
     fun logThinking(thinking: String) {
-        val truncated = if (thinking.length > MAX_THINKING_LENGTH) {
-            "${thinking.take(MAX_THINKING_LENGTH)}..."
-        } else {
-            thinking
-        }
+        val truncated =
+            if (thinking.length > MAX_THINKING_LENGTH) {
+                "${thinking.take(MAX_THINKING_LENGTH)}..."
+            } else {
+                thinking
+            }
         d(TAG_MODEL, "Thinking: $truncated")
     }
 
@@ -297,9 +302,7 @@ object Logger {
      * @param tag Component tag to format
      * @return Formatted tag with APP_TAG prefix
      */
-    private fun formatTag(tag: String): String {
-        return "$APP_TAG/$tag"
-    }
+    private fun formatTag(tag: String): String = "$APP_TAG/$tag"
 
     /**
      * Formats the message with optional timestamp.
@@ -307,16 +310,16 @@ object Logger {
      * @param message Message to format
      * @return Formatted message, optionally with timestamp prefix
      */
-    private fun formatMessage(message: String): String {
-        return if (includeTimestamp) {
-            val timestamp = java.text.SimpleDateFormat(
-                TIMESTAMP_FORMAT,
-                java.util.Locale.getDefault()
-            ).format(java.util.Date())
-            "[$timestamp] $message"
-        } else {
-            message
-        }
+    private fun formatMessage(message: String): String = if (includeTimestamp) {
+        val timestamp =
+            java.text
+                .SimpleDateFormat(
+                    TIMESTAMP_FORMAT,
+                    java.util.Locale.getDefault(),
+                ).format(java.util.Date())
+        "[$timestamp] $message"
+    } else {
+        message
     }
 
     // Constants - placed at the bottom following code style guidelines

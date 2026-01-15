@@ -49,18 +49,52 @@
 
         <activity
             android:name=".settings.SettingsActivity"
-            android:exported="false"
-            android:parentActivityName=".MainActivity" />
+            android:exported="true"
+            android:parentActivityName=".MainActivity">
+            <!-- Intent filter for backward compatibility - redirects to SettingsFragment -->
+            <intent-filter>
+                <action android:name="com.kevinluo.autoglm.ACTION_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".history.HistoryActivity"
-            android:exported="false"
-            android:parentActivityName=".MainActivity" />
+            android:exported="true"
+            android:parentActivityName=".MainActivity">
+            <!-- Intent filter for backward compatibility - redirects to HistoryFragment -->
+            <intent-filter>
+                <action android:name="com.kevinluo.autoglm.ACTION_HISTORY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Activity alias for direct navigation to Settings via MainActivity -->
+        <activity-alias
+            android:name=".NavigateToSettings"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="com.kevinluo.autoglm.NAVIGATE_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Activity alias for direct navigation to History via MainActivity -->
+        <activity-alias
+            android:name=".NavigateToHistory"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="com.kevinluo.autoglm.NAVIGATE_HISTORY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".history.HistoryDetailActivity"
             android:exported="false"
-            android:parentActivityName=".history.HistoryActivity" />
+            android:parentActivityName=".MainActivity" />
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

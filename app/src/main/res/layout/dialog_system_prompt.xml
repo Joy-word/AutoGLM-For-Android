@@ -43,11 +43,10 @@
     <!-- Reset Button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnResetPrompt"
-        style="@style/Widget.Material3.Button.TextButton"
+        style="@style/Widget.App.Button.Text.Secondary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="@string/settings_system_prompt_reset"
-        android:textColor="@color/status_error" />
+        android:text="@string/settings_system_prompt_reset" />
 
 </LinearLayout>

@@ -18,10 +18,7 @@ data class Point(val x: Int, val y: Int)
  * @property points List of points that make up the swipe path
  * @property durationMs Total duration of the swipe in milliseconds
  */
-data class SwipePath(
-    val points: List<Point>,
-    val durationMs: Int
-)
+data class SwipePath(val points: List<Point>, val durationMs: Int)
 
 /**
  * Generates humanized swipe paths that simulate natural human finger movements.
@@ -45,10 +42,7 @@ data class SwipePath(
  * @param random Random instance for generating variations (default: Random.Default)
  *
  */
-class HumanizedSwipeGenerator(
-    private val random: Random = Random.Default
-) {
-
+class HumanizedSwipeGenerator(private val random: Random = Random.Default) {
     /**
      * Generates a humanized swipe path from start to end coordinates.
      *
@@ -65,22 +59,20 @@ class HumanizedSwipeGenerator(
      * @return SwipePath containing the list of points and calculated duration
      *
      */
-    fun generatePath(
-        startX: Int,
-        startY: Int,
-        endX: Int,
-        endY: Int,
-        screenWidth: Int,
-        screenHeight: Int
-    ): SwipePath {
+    fun generatePath(startX: Int, startY: Int, endX: Int, endY: Int, screenWidth: Int, screenHeight: Int): SwipePath {
         val distance = hypot((endX - startX).toDouble(), (endY - startY).toDouble())
         val durationMs = calculateDuration(distance)
 
-        val points = generateBezierPath(
-            startX, startY, endX, endY,
-            screenWidth, screenHeight,
-            DEFAULT_POINT_COUNT
-        )
+        val points =
+            generateBezierPath(
+                startX,
+                startY,
+                endX,
+                endY,
+                screenWidth,
+                screenHeight,
+                DEFAULT_POINT_COUNT,
+            )
 
         return SwipePath(points, durationMs)
     }
@@ -106,16 +98,21 @@ class HumanizedSwipeGenerator(
         endX: Int,
         endY: Int,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
     ): SwipePath {
         val distance = hypot((endX - startX).toDouble(), (endY - startY).toDouble())
         val durationMs = calculateDuration(distance)
 
-        val points = generateLinearPoints(
-            startX, startY, endX, endY,
-            screenWidth, screenHeight,
-            DEFAULT_POINT_COUNT
-        )
+        val points =
+            generateLinearPoints(
+                startX,
+                startY,
+                endX,
+                endY,
+                screenWidth,
+                screenHeight,
+                DEFAULT_POINT_COUNT,
+            )
 
         return SwipePath(points, durationMs)
     }
@@ -153,7 +150,7 @@ class HumanizedSwipeGenerator(
         endY: Int,
         screenWidth: Int,
         screenHeight: Int,
-        pointCount: Int
+        pointCount: Int,
     ): List<Point> {
         // Calculate control point for quadratic bezier curve
         val controlPoint = calculateControlPoint(startX, startY, endX, endY, screenWidth, screenHeight)
@@ -165,19 +162,26 @@ class HumanizedSwipeGenerator(
 
             // Quadratic bezier formula: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
             val oneMinusT = 1 - t
-            val x = (oneMinusT.pow(2) * startX +
-                    2 * oneMinusT * t * controlPoint.first +
-                    t.pow(2) * endX).toInt()
-            val y = (oneMinusT.pow(2) * startY +
-                    2 * oneMinusT * t * controlPoint.second +
-                    t.pow(2) * endY).toInt()
+            val x =
+                (
+                    oneMinusT.pow(2) * startX +
+                        2 * oneMinusT * t * controlPoint.first +
+                        t.pow(2) * endX
+                    ).toInt()
+            val y =
+                (
+                    oneMinusT.pow(2) * startY +
+                        2 * oneMinusT * t * controlPoint.second +
+                        t.pow(2) * endY
+                    ).toInt()
 
             // Add micro-variations (tremor) except for start and end points
-            val (finalX, finalY) = if (i == 0 || i == pointCount - 1) {
-                Pair(x, y)
-            } else {
-                addTremor(x, y)
-            }
+            val (finalX, finalY) =
+                if (i == 0 || i == pointCount - 1) {
+                    Pair(x, y)
+                } else {
+                    addTremor(x, y)
+                }
 
             // Clamp to screen bounds
             val clampedX = finalX.coerceIn(0, screenWidth - 1)
@@ -209,7 +213,7 @@ class HumanizedSwipeGenerator(
         endX: Int,
         endY: Int,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
     ): Pair<Double, Double> {
         val midX = (startX + endX) / 2.0
         val midY = (startY + endY) / 2.0
@@ -294,7 +298,7 @@ class HumanizedSwipeGenerator(
         endY: Int,
         screenWidth: Int,
         screenHeight: Int,
-        pointCount: Int
+        pointCount: Int,
     ): List<Point> {
         val points = mutableListOf<Point>()
 
@@ -323,8 +327,10 @@ class HumanizedSwipeGenerator(
 
         // Path generation constants
         private const val DEFAULT_POINT_COUNT = 20
+
         /** How much the path curves (0 = straight, higher = more curve). */
         private const val CURVE_FACTOR = 0.15
+
         /** Max pixels of hand tremor variation. */
         private const val TREMOR_AMPLITUDE = 3
 

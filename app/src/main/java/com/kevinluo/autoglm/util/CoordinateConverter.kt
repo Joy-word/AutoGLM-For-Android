@@ -21,7 +21,6 @@ package com.kevinluo.autoglm.util
  *
  */
 object CoordinateConverter {
-
     /**
      * Converts a relative X coordinate to an absolute screen X coordinate.
      *
@@ -30,9 +29,7 @@ object CoordinateConverter {
      * @return The absolute X coordinate in range [0, screenWidth)
      *
      */
-    fun toAbsoluteX(relativeX: Int, screenWidth: Int): Int {
-        return relativeX * screenWidth / RELATIVE_MAX
-    }
+    fun toAbsoluteX(relativeX: Int, screenWidth: Int): Int = relativeX * screenWidth / RELATIVE_MAX
 
     /**
      * Converts a relative Y coordinate to an absolute screen Y coordinate.
@@ -42,9 +39,7 @@ object CoordinateConverter {
      * @return The absolute Y coordinate in range [0, screenHeight)
      *
      */
-    fun toAbsoluteY(relativeY: Int, screenHeight: Int): Int {
-        return relativeY * screenHeight / RELATIVE_MAX
-    }
+    fun toAbsoluteY(relativeY: Int, screenHeight: Int): Int = relativeY * screenHeight / RELATIVE_MAX
 
     /**
      * Converts relative coordinates to absolute screen coordinates.
@@ -56,17 +51,10 @@ object CoordinateConverter {
      * @return A Pair of (absoluteX, absoluteY) coordinates
      *
      */
-    fun toAbsolute(
-        relativeX: Int,
-        relativeY: Int,
-        screenWidth: Int,
-        screenHeight: Int
-    ): Pair<Int, Int> {
-        return Pair(
-            toAbsoluteX(relativeX, screenWidth),
-            toAbsoluteY(relativeY, screenHeight)
-        )
-    }
+    fun toAbsolute(relativeX: Int, relativeY: Int, screenWidth: Int, screenHeight: Int): Pair<Int, Int> = Pair(
+        toAbsoluteX(relativeX, screenWidth),
+        toAbsoluteY(relativeY, screenHeight),
+    )
 
     /**
      * Converts an absolute X coordinate back to a relative coordinate.
@@ -76,9 +64,7 @@ object CoordinateConverter {
      * @return The relative X coordinate in range [0, 999]
      *
      */
-    fun toRelativeX(absoluteX: Int, screenWidth: Int): Int {
-        return absoluteX * RELATIVE_MAX / screenWidth
-    }
+    fun toRelativeX(absoluteX: Int, screenWidth: Int): Int = absoluteX * RELATIVE_MAX / screenWidth
 
     /**
      * Converts an absolute Y coordinate back to a relative coordinate.
@@ -88,9 +74,7 @@ object CoordinateConverter {
      * @return The relative Y coordinate in range [0, 999]
      *
      */
-    fun toRelativeY(absoluteY: Int, screenHeight: Int): Int {
-        return absoluteY * RELATIVE_MAX / screenHeight
-    }
+    fun toRelativeY(absoluteY: Int, screenHeight: Int): Int = absoluteY * RELATIVE_MAX / screenHeight
 
     /**
      * The maximum value for relative coordinates used by the model.

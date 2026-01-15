@@ -15,7 +15,6 @@ import com.kevinluo.autoglm.util.Logger
  *
  */
 object ActionParser {
-
     private const val TAG = "ActionParser"
 
     // Valid coordinate range
@@ -26,6 +25,7 @@ object ActionParser {
     private val DO_PATTERN = Regex("""^do\((.+)\)$""", RegexOption.DOT_MATCHES_ALL)
     private val FINISH_PATTERN = Regex("""^finish\(message=["'](.*)["']\)$""", RegexOption.DOT_MATCHES_ALL)
     private val ACTION_TYPE_PATTERN = Regex("""action=["']([^"']+)["']""")
+
     // Coordinate patterns - support both positive integers and detect negative numbers
     private val ELEMENT_PATTERN = Regex("""element=\[(-?\d+),\s*(-?\d+)\]""")
     private val START_PATTERN = Regex("""start=\[(-?\d+),\s*(-?\d+)\]""")
@@ -36,7 +36,14 @@ object ActionParser {
     private val DURATION_PATTERN = Regex("""duration=["']?([^"',\)]+)["']?""")
     private val INSTRUCTION_PATTERN = Regex("""instruction=["'](.*)["']""", RegexOption.DOT_MATCHES_ALL)
     private val DELAY_PATTERN = Regex("""delay=(\d+)""")
-    
+
+    // Batch step parsing patterns (pre-compiled for performance)
+    private val BATCH_ACTION_PATTERN = Regex(""""action"\s*:\s*"([^"]+)"""")
+    private val BATCH_ELEMENT_PATTERN = Regex(""""element"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""")
+    private val BATCH_START_PATTERN = Regex(""""start"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""")
+    private val BATCH_END_PATTERN = Regex(""""end"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""")
+    private val BATCH_DURATION_PATTERN = Regex(""""duration"\s*:\s*"?([^",}]+)"?""")
+
     /**
      * Parses a model response string into an [AgentAction].
      *
@@ -63,7 +70,6 @@ object ActionParser {
         throw ActionParseException("Unknown action format: $trimmed")
     }
 
-    
     /**
      * Parses a finish action from the response string.
      *
@@ -73,8 +79,9 @@ object ActionParser {
     private fun parseFinishAction(response: String): AgentAction.Finish {
         // Extract message from finish(message="...")
         val messageMatch = FINISH_PATTERN.find(response)
-        val message = messageMatch?.groupValues?.get(1)
-            ?: extractFinishMessage(response)
+        val message =
+            messageMatch?.groupValues?.get(1)
+                ?: extractFinishMessage(response)
         Logger.d(TAG, "Parsed finish action with message: ${message.take(50)}")
         return AgentAction.Finish(message)
     }
@@ -101,7 +108,7 @@ object ActionParser {
         val endIndex = content.lastIndexOf(quote)
         return if (endIndex > 0) content.substring(0, endIndex) else content.substringBefore(")")
     }
-    
+
     /**
      * Parses a do action from the response string.
      *
@@ -112,33 +119,86 @@ object ActionParser {
     private fun parseDoAction(response: String): AgentAction {
         // Special handling for Type and Type_Name actions due to complex text content
         if (response.contains("""action="Type"""") || response.contains("""action='Type'""") ||
-            response.contains("""action="Type_Name"""") || response.contains("""action='Type_Name'""")) {
+            response.contains("""action="Type_Name"""") || response.contains("""action='Type_Name'""")
+        ) {
             return parseTypeAction(response)
         }
-        
+
         // Extract action type
-        val actionTypeMatch = ACTION_TYPE_PATTERN.find(response)
-            ?: throw ActionParseException("No action type found in: $response")
+        val actionTypeMatch =
+            ACTION_TYPE_PATTERN.find(response)
+                ?: throw ActionParseException("No action type found in: $response")
         val actionType = actionTypeMatch.groupValues[1]
-        
+
         return when (actionType) {
-            "Tap" -> parseTapAction(response)
-            "Swipe" -> parseSwipeAction(response)
-            "Launch" -> parseLaunchAction(response)
-            "List_Apps", "ListApps" -> AgentAction.ListApps
-            "Back" -> AgentAction.Back
-            "Home" -> AgentAction.Home
-            "VolumeUp" -> AgentAction.VolumeUp
-            "VolumeDown" -> AgentAction.VolumeDown
-            "Power" -> AgentAction.Power
-            "Long Press" -> parseLongPressAction(response)
-            "Double Tap" -> parseDoubleTapAction(response)
-            "Wait" -> parseWaitAction(response)
-            "Take_over" -> parseTakeOverAction(response)
-            "Interact" -> parseInteractAction(response)
-            "Note" -> parseNoteAction(response)
-            "Call_API" -> parseCallApiAction(response)
-            "Batch" -> parseBatchAction(response)
+            "Tap" -> {
+                parseTapAction(response)
+            }
+
+            "Swipe" -> {
+                parseSwipeAction(response)
+            }
+
+            "Launch" -> {
+                parseLaunchAction(response)
+            }
+
+            "List_Apps", "ListApps" -> {
+                AgentAction.ListApps
+            }
+
+            "Back" -> {
+                AgentAction.Back
+            }
+
+            "Home" -> {
+                AgentAction.Home
+            }
+
+            "VolumeUp" -> {
+                AgentAction.VolumeUp
+            }
+
+            "VolumeDown" -> {
+                AgentAction.VolumeDown
+            }
+
+            "Power" -> {
+                AgentAction.Power
+            }
+
+            "Long Press" -> {
+                parseLongPressAction(response)
+            }
+
+            "Double Tap" -> {
+                parseDoubleTapAction(response)
+            }
+
+            "Wait" -> {
+                parseWaitAction(response)
+            }
+
+            "Take_over" -> {
+                parseTakeOverAction(response)
+            }
+
+            "Interact" -> {
+                parseInteractAction(response)
+            }
+
+            "Note" -> {
+                parseNoteAction(response)
+            }
+
+            "Call_API" -> {
+                parseCallApiAction(response)
+            }
+
+            "Batch" -> {
+                parseBatchAction(response)
+            }
+
             else -> {
                 Logger.w(TAG, "Unknown action type: $actionType")
                 throw ActionParseException("Unknown action type: $actionType")
@@ -155,34 +215,35 @@ object ActionParser {
      */
     private fun parseTypeAction(response: String): AgentAction {
         val isTypeName = response.contains("Type_Name")
-        
+
         // Extract text using special handling
         // Format: do(action="Type", text="...")
         val textStartIndex = response.indexOf("text=")
         if (textStartIndex == -1) {
             return if (isTypeName) AgentAction.TypeName("") else AgentAction.Type("")
         }
-        
+
         val afterText = response.substring(textStartIndex + 5)
         val quote = afterText.firstOrNull()
-        
-        val text = if (quote == '"' || quote == '\'') {
-            // Find the closing quote, handling escaped quotes
-            val content = afterText.drop(1)
-            val closingIndex = findUnescapedQuote(content, quote)
-            if (closingIndex >= 0) {
-                // Unescape the content
-                unescapeText(content.substring(0, closingIndex), quote)
+
+        val text =
+            if (quote == '"' || quote == '\'') {
+                // Find the closing quote, handling escaped quotes
+                val content = afterText.drop(1)
+                val closingIndex = findUnescapedQuote(content, quote)
+                if (closingIndex >= 0) {
+                    // Unescape the content
+                    unescapeText(content.substring(0, closingIndex), quote)
+                } else {
+                    content.substringBefore(")")
+                }
             } else {
-                content.substringBefore(")")
+                afterText.substringBefore(")").trim()
             }
-        } else {
-            afterText.substringBefore(")").trim()
-        }
-        
+
         return if (isTypeName) AgentAction.TypeName(text) else AgentAction.Type(text)
     }
-    
+
     /**
      * Finds the index of the first unescaped quote character.
      *
@@ -206,7 +267,7 @@ object ActionParser {
         }
         return -1
     }
-    
+
     /**
      * Unescapes text by converting escaped quotes to regular quotes.
      * Handles: `\"` -> `"` and `\'` -> `'`
@@ -215,12 +276,10 @@ object ActionParser {
      * @param quote The quote character that was escaped
      * @return The unescaped text
      */
-    private fun unescapeText(text: String, quote: Char): String {
-        return text
-            .replace("\\$quote", quote.toString())
-            .replace("\\\\", "\\")
-    }
-    
+    private fun unescapeText(text: String, quote: Char): String = text
+        .replace("\\$quote", quote.toString())
+        .replace("\\\\", "\\")
+
     /**
      * Parses a Tap action from the response string.
      *
@@ -230,22 +289,23 @@ object ActionParser {
      * @throws CoordinateOutOfRangeException if coordinates are outside valid range
      */
     private fun parseTapAction(response: String): AgentAction.Tap {
-        val elementMatch = ELEMENT_PATTERN.find(response)
-            ?: throw ActionParseException("No element coordinates found in Tap action: $response")
-        
+        val elementMatch =
+            ELEMENT_PATTERN.find(response)
+                ?: throw ActionParseException("No element coordinates found in Tap action: $response")
+
         val x = parseCoordinateValue(elementMatch.groupValues[1], "x", response)
         val y = parseCoordinateValue(elementMatch.groupValues[2], "y", response)
-        
+
         // Validate coordinates
         validateCoordinates(response, "x" to x, "y" to y)
-        
+
         // Check for optional message (sensitive operation)
         val messageMatch = MESSAGE_PATTERN.find(response)
         val message = messageMatch?.groupValues?.get(1)
-        
+
         return AgentAction.Tap(x, y, message)
     }
-    
+
     /**
      * Parses a Swipe action from the response string.
      *
@@ -255,32 +315,35 @@ object ActionParser {
      * @throws CoordinateOutOfRangeException if coordinates are outside valid range
      */
     private fun parseSwipeAction(response: String): AgentAction.Swipe {
-        val startMatch = START_PATTERN.find(response)
-            ?: throw ActionParseException("No start coordinates found in Swipe action: $response")
-        val endMatch = END_PATTERN.find(response)
-            ?: throw ActionParseException("No end coordinates found in Swipe action: $response")
-        
+        val startMatch =
+            START_PATTERN.find(response)
+                ?: throw ActionParseException("No start coordinates found in Swipe action: $response")
+        val endMatch =
+            END_PATTERN.find(response)
+                ?: throw ActionParseException("No end coordinates found in Swipe action: $response")
+
         val startX = parseCoordinateValue(startMatch.groupValues[1], "startX", response)
         val startY = parseCoordinateValue(startMatch.groupValues[2], "startY", response)
         val endX = parseCoordinateValue(endMatch.groupValues[1], "endX", response)
         val endY = parseCoordinateValue(endMatch.groupValues[2], "endY", response)
-        
+
         // Validate coordinates
-        validateCoordinates(response, 
-            "startX" to startX, 
-            "startY" to startY, 
-            "endX" to endX, 
-            "endY" to endY
+        validateCoordinates(
+            response,
+            "startX" to startX,
+            "startY" to startY,
+            "endX" to endX,
+            "endY" to endY,
         )
-        
+
         return AgentAction.Swipe(
             startX = startX,
             startY = startY,
             endX = endX,
-            endY = endY
+            endY = endY,
         )
     }
-    
+
     /**
      * Parses a Launch action from the response string.
      *
@@ -289,12 +352,12 @@ object ActionParser {
      * @throws ActionParseException if app name is not found
      */
     private fun parseLaunchAction(response: String): AgentAction.Launch {
-        val appMatch = APP_PATTERN.find(response)
-            ?: throw ActionParseException("No app name found in Launch action: $response")
+        val appMatch =
+            APP_PATTERN.find(response)
+                ?: throw ActionParseException("No app name found in Launch action: $response")
         return AgentAction.Launch(appMatch.groupValues[1])
     }
 
-    
     /**
      * Parses a Long Press action from the response string.
      *
@@ -304,22 +367,23 @@ object ActionParser {
      * @throws CoordinateOutOfRangeException if coordinates are outside valid range
      */
     private fun parseLongPressAction(response: String): AgentAction.LongPress {
-        val elementMatch = ELEMENT_PATTERN.find(response)
-            ?: throw ActionParseException("No element coordinates found in Long Press action: $response")
-        
+        val elementMatch =
+            ELEMENT_PATTERN.find(response)
+                ?: throw ActionParseException("No element coordinates found in Long Press action: $response")
+
         val x = parseCoordinateValue(elementMatch.groupValues[1], "x", response)
         val y = parseCoordinateValue(elementMatch.groupValues[2], "y", response)
-        
+
         // Validate coordinates
         validateCoordinates(response, "x" to x, "y" to y)
-        
+
         // Check for optional duration
         val durationMatch = DURATION_PATTERN.find(response)
         val durationMs = durationMatch?.groupValues?.get(1)?.toIntOrNull() ?: 3000
-        
+
         return AgentAction.LongPress(x, y, durationMs)
     }
-    
+
     /**
      * Parses a Double Tap action from the response string.
      *
@@ -329,18 +393,19 @@ object ActionParser {
      * @throws CoordinateOutOfRangeException if coordinates are outside valid range
      */
     private fun parseDoubleTapAction(response: String): AgentAction.DoubleTap {
-        val elementMatch = ELEMENT_PATTERN.find(response)
-            ?: throw ActionParseException("No element coordinates found in Double Tap action: $response")
-        
+        val elementMatch =
+            ELEMENT_PATTERN.find(response)
+                ?: throw ActionParseException("No element coordinates found in Double Tap action: $response")
+
         val x = parseCoordinateValue(elementMatch.groupValues[1], "x", response)
         val y = parseCoordinateValue(elementMatch.groupValues[2], "y", response)
-        
+
         // Validate coordinates
         validateCoordinates(response, "x" to x, "y" to y)
-        
+
         return AgentAction.DoubleTap(x = x, y = y)
     }
-    
+
     /**
      * Parses a Wait action from the response string.
      *
@@ -350,17 +415,18 @@ object ActionParser {
     private fun parseWaitAction(response: String): AgentAction.Wait {
         val durationMatch = DURATION_PATTERN.find(response)
         val durationStr = durationMatch?.groupValues?.get(1) ?: "1"
-        
+
         // Handle formats like "2 seconds", "2.5", "2"
-        val duration = durationStr
-            .replace("seconds", "")
-            .replace("second", "")
-            .trim()
-            .toFloatOrNull() ?: 1.0f
-        
+        val duration =
+            durationStr
+                .replace("seconds", "")
+                .replace("second", "")
+                .trim()
+                .toFloatOrNull() ?: 1.0f
+
         return AgentAction.Wait(duration)
     }
-    
+
     /**
      * Parses a Take_over action from the response string.
      *
@@ -372,7 +438,7 @@ object ActionParser {
         val message = messageMatch?.groupValues?.get(1) ?: "User intervention required"
         return AgentAction.TakeOver(message)
     }
-    
+
     /**
      * Parses an Interact action from the response string.
      *
@@ -384,7 +450,7 @@ object ActionParser {
         // For now, return with null options
         return AgentAction.Interact(null)
     }
-    
+
     /**
      * Parses a Note action from the response string.
      *
@@ -396,7 +462,7 @@ object ActionParser {
         val message = messageMatch?.groupValues?.get(1) ?: ""
         return AgentAction.Note(message)
     }
-    
+
     /**
      * Parses a Call_API action from the response string.
      *
@@ -408,7 +474,7 @@ object ActionParser {
         val instruction = instructionMatch?.groupValues?.get(1) ?: ""
         return AgentAction.CallApi(instruction)
     }
-    
+
     /**
      * Parses a Batch action from the response string.
      * Format: `do(action="Batch", steps=[{"action": "Tap", "element": [x,y]}, ...], delay=500)`
@@ -421,26 +487,26 @@ object ActionParser {
         // Extract delay (optional, default 500ms)
         val delayMatch = DELAY_PATTERN.find(response)
         val delayMs = delayMatch?.groupValues?.get(1)?.toIntOrNull() ?: 500
-        
+
         // Extract steps array
         val stepsStartIndex = response.indexOf("steps=[")
         if (stepsStartIndex == -1) {
             throw ActionParseException("No steps found in Batch action: $response")
         }
-        
+
         // Find the matching closing bracket for steps array
         val stepsContent = extractStepsArray(response, stepsStartIndex + 6)
-        
+
         // Parse each step
         val steps = parseStepsArray(stepsContent)
-        
+
         if (steps.isEmpty()) {
             throw ActionParseException("Empty steps in Batch action: $response")
         }
-        
+
         return AgentAction.Batch(steps, delayMs)
     }
-    
+
     /**
      * Extracts the steps array content, handling nested brackets.
      *
@@ -453,10 +519,10 @@ object ActionParser {
         var inString = false
         var stringChar = ' '
         val result = StringBuilder()
-        
+
         for (i in startIndex until response.length) {
             val c = response[i]
-            
+
             // Handle string boundaries
             if ((c == '"' || c == '\'') && (i == 0 || response[i - 1] != '\\')) {
                 if (!inString) {
@@ -466,10 +532,13 @@ object ActionParser {
                     inString = false
                 }
             }
-            
+
             if (!inString) {
                 when (c) {
-                    '[' -> bracketCount++
+                    '[' -> {
+                        bracketCount++
+                    }
+
                     ']' -> {
                         bracketCount--
                         if (bracketCount == 0) {
@@ -478,15 +547,15 @@ object ActionParser {
                     }
                 }
             }
-            
+
             if (bracketCount > 0) {
                 result.append(c)
             }
         }
-        
+
         return result.toString()
     }
-    
+
     /**
      * Parses the steps array content into a list of [AgentAction]s.
      * Supports both JSON-like format and do() format.
@@ -496,11 +565,11 @@ object ActionParser {
      */
     private fun parseStepsArray(stepsContent: String): List<AgentAction> {
         val steps = mutableListOf<AgentAction>()
-        
+
         // Try to parse as JSON-like objects: {"action": "Tap", "element": [x,y]}
         val objectPattern = Regex("""\{[^}]+\}""")
         val matches = objectPattern.findAll(stepsContent)
-        
+
         for (match in matches) {
             val stepStr = match.value
             val action = parseStepObject(stepStr)
@@ -508,10 +577,10 @@ object ActionParser {
                 steps.add(action)
             }
         }
-        
+
         return steps
     }
-    
+
     /**
      * Parses a single step object from JSON-like format.
      * Format: `{"action": "Tap", "element": [x,y]}`
@@ -521,72 +590,110 @@ object ActionParser {
      */
     private fun parseStepObject(stepStr: String): AgentAction? {
         // Extract action type
-        val actionMatch = Regex(""""action"\s*:\s*"([^"]+)"""").find(stepStr)
-            ?: return null
+        val actionMatch = BATCH_ACTION_PATTERN.find(stepStr) ?: return null
         val actionType = actionMatch.groupValues[1]
-        
+
         return when (actionType) {
             "Tap" -> {
-                val elementMatch = Regex(""""element"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""").find(stepStr)
+                val elementMatch = BATCH_ELEMENT_PATTERN.find(stepStr)
                 if (elementMatch != null) {
                     val x = parseCoordinateValue(elementMatch.groupValues[1], "x", stepStr)
                     val y = parseCoordinateValue(elementMatch.groupValues[2], "y", stepStr)
                     validateCoordinates(stepStr, "x" to x, "y" to y)
                     AgentAction.Tap(x = x, y = y)
-                } else null
+                } else {
+                    null
+                }
             }
+
             "Swipe" -> {
-                val startMatch = Regex(""""start"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""").find(stepStr)
-                val endMatch = Regex(""""end"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""").find(stepStr)
+                val startMatch = BATCH_START_PATTERN.find(stepStr)
+                val endMatch = BATCH_END_PATTERN.find(stepStr)
                 if (startMatch != null && endMatch != null) {
                     val startX = parseCoordinateValue(startMatch.groupValues[1], "startX", stepStr)
                     val startY = parseCoordinateValue(startMatch.groupValues[2], "startY", stepStr)
                     val endX = parseCoordinateValue(endMatch.groupValues[1], "endX", stepStr)
                     val endY = parseCoordinateValue(endMatch.groupValues[2], "endY", stepStr)
-                    validateCoordinates(stepStr, 
-                        "startX" to startX, 
-                        "startY" to startY, 
-                        "endX" to endX, 
-                        "endY" to endY
+                    validateCoordinates(
+                        stepStr,
+                        "startX" to startX,
+                        "startY" to startY,
+                        "endX" to endX,
+                        "endY" to endY,
                     )
                     AgentAction.Swipe(
                         startX = startX,
                         startY = startY,
                         endX = endX,
-                        endY = endY
+                        endY = endY,
                     )
-                } else null
+                } else {
+                    null
+                }
             }
+
             "Long Press" -> {
-                val elementMatch = Regex(""""element"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""").find(stepStr)
+                val elementMatch = BATCH_ELEMENT_PATTERN.find(stepStr)
                 if (elementMatch != null) {
                     val x = parseCoordinateValue(elementMatch.groupValues[1], "x", stepStr)
                     val y = parseCoordinateValue(elementMatch.groupValues[2], "y", stepStr)
                     validateCoordinates(stepStr, "x" to x, "y" to y)
                     AgentAction.LongPress(x = x, y = y)
-                } else null
+                } else {
+                    null
+                }
             }
+
             "Double Tap" -> {
-                val elementMatch = Regex(""""element"\s*:\s*\[(-?\d+),\s*(-?\d+)\]""").find(stepStr)
+                val elementMatch = BATCH_ELEMENT_PATTERN.find(stepStr)
                 if (elementMatch != null) {
                     val x = parseCoordinateValue(elementMatch.groupValues[1], "x", stepStr)
                     val y = parseCoordinateValue(elementMatch.groupValues[2], "y", stepStr)
                     validateCoordinates(stepStr, "x" to x, "y" to y)
                     AgentAction.DoubleTap(x = x, y = y)
-                } else null
+                } else {
+                    null
+                }
             }
+
             "Wait" -> {
-                val durationMatch = Regex(""""duration"\s*:\s*"?([^",}]+)"?""").find(stepStr)
+                val durationMatch = BATCH_DURATION_PATTERN.find(stepStr)
                 val durationStr = durationMatch?.groupValues?.get(1) ?: "1"
-                val duration = durationStr.replace("seconds", "").replace("second", "").trim().toFloatOrNull() ?: 1.0f
+                val duration =
+                    durationStr
+                        .replace("seconds", "")
+                        .replace("second", "")
+                        .trim()
+                        .toFloatOrNull() ?: 1.0f
                 AgentAction.Wait(duration)
             }
-            "Back" -> AgentAction.Back
-            "Home" -> AgentAction.Home
-            else -> null
+
+            "Back" -> {
+                AgentAction.Back
+            }
+
+            "Home" -> {
+                AgentAction.Home
+            }
+
+            "VolumeUp" -> {
+                AgentAction.VolumeUp
+            }
+
+            "VolumeDown" -> {
+                AgentAction.VolumeDown
+            }
+
+            "Power" -> {
+                AgentAction.Power
+            }
+
+            else -> {
+                null
+            }
         }
     }
-    
+
     /**
      * Safely parses a coordinate value string to Int.
      * Handles overflow and invalid number formats.
@@ -597,20 +704,18 @@ object ActionParser {
      * @return The parsed integer value
      * @throws ActionParseException if the value cannot be parsed or overflows
      */
-    private fun parseCoordinateValue(value: String, name: String, originalAction: String): Int {
-        return try {
-            val longValue = value.toLong()
-            if (longValue > Int.MAX_VALUE || longValue < Int.MIN_VALUE) {
-                throw ActionParseException(
-                    "Coordinate '$name' value '$value' is too large (overflow) in: $originalAction"
-                )
-            }
-            longValue.toInt()
-        } catch (e: NumberFormatException) {
-            throw ActionParseException("Invalid coordinate '$name' value '$value' in: $originalAction")
+    private fun parseCoordinateValue(value: String, name: String, originalAction: String): Int = try {
+        val longValue = value.toLong()
+        if (longValue > Int.MAX_VALUE || longValue < Int.MIN_VALUE) {
+            throw ActionParseException(
+                "Coordinate '$name' value '$value' is too large (overflow) in: $originalAction",
+            )
         }
+        longValue.toInt()
+    } catch (e: NumberFormatException) {
+        throw ActionParseException("Invalid coordinate '$name' value '$value' in: $originalAction")
     }
-    
+
     /**
      * Validates that all coordinates are within the valid range (0-999).
      *
@@ -619,10 +724,11 @@ object ActionParser {
      * @throws CoordinateOutOfRangeException if any coordinate is out of range
      */
     private fun validateCoordinates(originalAction: String, vararg coordinates: Pair<String, Int>) {
-        val invalidCoords = coordinates
-            .filter { (_, value) -> value < MIN_COORDINATE || value > MAX_COORDINATE }
-            .map { (name, value) -> InvalidCoordinate(name, value) }
-        
+        val invalidCoords =
+            coordinates
+                .filter { (_, value) -> value < MIN_COORDINATE || value > MAX_COORDINATE }
+                .map { (name, value) -> InvalidCoordinate(name, value) }
+
         if (invalidCoords.isNotEmpty()) {
             throw CoordinateOutOfRangeException(invalidCoords, originalAction)
         }
@@ -643,10 +749,8 @@ class ActionParseException(message: String) : Exception(message)
  * @param invalidCoordinates List of coordinates that are out of range
  * @param originalAction The original action string that contained invalid coordinates
  */
-class CoordinateOutOfRangeException(
-    val invalidCoordinates: List<InvalidCoordinate>,
-    val originalAction: String
-) : Exception("Coordinates out of range: ${invalidCoordinates.joinToString { "${it.name}=${it.value}" }}")
+class CoordinateOutOfRangeException(val invalidCoordinates: List<InvalidCoordinate>, val originalAction: String) :
+    Exception("Coordinates out of range: ${invalidCoordinates.joinToString { "${it.name}=${it.value}" }}")
 
 /**
  * Represents an invalid coordinate value.
@@ -654,7 +758,4 @@ class CoordinateOutOfRangeException(
  * @param name The coordinate name (e.g., "x", "y", "startX", "endY")
  * @param value The invalid coordinate value
  */
-data class InvalidCoordinate(
-    val name: String,
-    val value: Int
-)
+data class InvalidCoordinate(val name: String, val value: Int)

@@ -27,7 +27,6 @@ import java.util.zip.ZipOutputStream
  * - Export logs as a shareable zip file
  */
 object LogFileManager {
-
     private const val LOG_DIR = "logs"
     private const val LOG_FILE_PREFIX = "autoglm_"
     private const val LOG_FILE_EXTENSION = ".log"
@@ -43,7 +42,7 @@ object LogFileManager {
 
     @Volatile
     private var appContext: Context? = null
-    
+
     @Volatile
     private var isEnabled: Boolean = true
 
@@ -93,14 +92,15 @@ object LogFileManager {
                 }
 
                 val timestamp = timestampFormat.format(Date())
-                val logEntry = buildString {
-                    append("$timestamp [$level] $tag: $message")
-                    throwable?.let {
+                val logEntry =
+                    buildString {
+                        append("$timestamp [$level] $tag: $message")
+                        throwable?.let {
+                            append("\n")
+                            append(it.stackTraceToString())
+                        }
                         append("\n")
-                        append(it.stackTraceToString())
                     }
-                    append("\n")
-                }
 
                 FileWriter(logFile, true).use { writer ->
                     writer.write(logEntry)
@@ -120,15 +120,16 @@ object LogFileManager {
     fun getLogFiles(): List<File> {
         val context = appContext ?: return emptyList()
         val logDir = getLogDirectory(context)
-        
-        return logDir.listFiles { file ->
-            file.isFile && file.name.startsWith(LOG_FILE_PREFIX) && file.name.endsWith(LOG_FILE_EXTENSION)
-        }?.sortedByDescending { it.name } ?: emptyList()
+
+        return logDir
+            .listFiles { file ->
+                file.isFile && file.name.startsWith(LOG_FILE_PREFIX) && file.name.endsWith(LOG_FILE_EXTENSION)
+            }?.sortedByDescending { it.name } ?: emptyList()
     }
 
     /**
      * Exports all logs as a zip file and returns a share intent.
-     * 
+     *
      * Sensitive data is sanitized before export:
      * - URLs are partially masked
      * - Profile names are masked
@@ -137,52 +138,51 @@ object LogFileManager {
      * @param context Context for file operations
      * @return Share intent for the exported zip file, or null if export failed
      */
-    fun exportLogs(context: Context): Intent? {
-        return try {
-            val exportDir = File(context.cacheDir, "export")
-            exportDir.mkdirs()
+    fun exportLogs(context: Context): Intent? = try {
+        val exportDir = File(context.cacheDir, "export")
+        exportDir.mkdirs()
 
-            val timestamp = exportTimestampFormat.format(Date())
-            val zipFile = File(exportDir, "autoglm_logs_$timestamp.zip")
+        val timestamp = exportTimestampFormat.format(Date())
+        val zipFile = File(exportDir, "autoglm_logs_$timestamp.zip")
 
-            ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
-                // Add device info
-                val deviceInfo = getDeviceInfo(context)
-                zipOut.putNextEntry(ZipEntry("device_info.txt"))
-                zipOut.write(deviceInfo.toByteArray())
+        ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
+            // Add device info
+            val deviceInfo = getDeviceInfo(context)
+            zipOut.putNextEntry(ZipEntry("device_info.txt"))
+            zipOut.write(deviceInfo.toByteArray())
+            zipOut.closeEntry()
+
+            // Add log files with sanitization
+            getLogFiles().forEach { logFile ->
+                zipOut.putNextEntry(ZipEntry(logFile.name))
+                val sanitizedContent = sanitizeLogContent(logFile.readText())
+                zipOut.write(sanitizedContent.toByteArray())
                 zipOut.closeEntry()
-
-                // Add log files with sanitization
-                getLogFiles().forEach { logFile ->
-                    zipOut.putNextEntry(ZipEntry(logFile.name))
-                    val sanitizedContent = sanitizeLogContent(logFile.readText())
-                    zipOut.write(sanitizedContent.toByteArray())
-                    zipOut.closeEntry()
-                }
             }
+        }
 
-            // Create share intent
-            val uri = FileProvider.getUriForFile(
+        // Create share intent
+        val uri =
+            FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
-                zipFile
+                zipFile,
             )
 
-            Intent(Intent.ACTION_SEND).apply {
-                type = "application/zip"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "AutoGLM Debug Logs")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        } catch (e: Exception) {
-            Logger.e(TAG, "Failed to export logs", e)
-            null
+        Intent(Intent.ACTION_SEND).apply {
+            type = "application/zip"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "AutoGLM Debug Logs")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+    } catch (e: Exception) {
+        Logger.e(TAG, "Failed to export logs", e)
+        null
     }
-    
+
     /**
      * Sanitizes log content by masking sensitive data.
-     * 
+     *
      * Masked data includes:
      * - URLs (keeps protocol and TLD only)
      * - Profile names
@@ -190,156 +190,188 @@ object LogFileManager {
      * - App names and package names
      * - Model thinking and action content
      * - App list entries (removed entirely)
-     * 
+     *
      * @param content Raw log content
      * @return Sanitized log content
      */
     private fun sanitizeLogContent(content: String): String {
         var sanitized = content
-        
+
         // ==================== Remove app list entries ====================
         // Match lines like "  信息 -> com.android.mms" or "  ... and 118 more apps"
-        sanitized = sanitized.replace(
-            Regex("""(?m)^.*\[INFO\] AutoGLM/MainActivity:\s{2,}.*(?:->|more apps).*$\n?"""),
-            ""
-        )
-        sanitized = sanitized.replace(
-            Regex("""(?m)^.*=== All Launchable Apps:.*$\n?"""),
-            ""
-        )
-        sanitized = sanitized.replace(
-            Regex("""(?m)^.*=== End of App List ===.*$\n?"""),
-            ""
-        )
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(?m)^.*\[INFO\] AutoGLM/MainActivity:\s{2,}.*(?:->|more apps).*$\n?"""),
+                "",
+            )
+        sanitized =
+            sanitized.replace(
+                Regex("""(?m)^.*=== All Launchable Apps:.*$\n?"""),
+                "",
+            )
+        sanitized =
+            sanitized.replace(
+                Regex("""(?m)^.*=== End of App List ===.*$\n?"""),
+                "",
+            )
+
         // ==================== Mask URLs ====================
         // Completely mask all URLs
-        sanitized = sanitized.replace(
-            Regex("""https?://[^\s]+""", RegexOption.IGNORE_CASE)
-        ) { "***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""https?://[^\s]+""", RegexOption.IGNORE_CASE),
+            ) { "***" }
+
         // ==================== Mask profile/config names ====================
-        sanitized = sanitized.replace(
-            Regex("""(Saving profile: id=\S+, name=)([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Saving current configuration as profile: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Saving model configuration: baseUrl=)([^,]+)(, modelName=)([^\n]+)""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Testing connection to: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Imported dev profile: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Saving task template: id=\S+, name=)([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(Saving profile: id=\S+, name=)([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Saving current configuration as profile: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Saving model configuration: baseUrl=)([^,]+)(, modelName=)([^\n]+)"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Testing connection to: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Imported dev profile: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Saving task template: id=\S+, name=)([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
         // ==================== Mask task descriptions ====================
         // PhoneAgent: "Task started: xxx"
-        sanitized = sanitized.replace(
-            Regex("""(Task started: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(Task started: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
         // PhoneAgent: "Step N: xxx"
-        sanitized = sanitized.replace(
-            Regex("""(Step \d+: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(Step \d+: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
         // MainActivity: "Starting task: xxx" or "Starting task from floating window: xxx"
-        sanitized = sanitized.replace(
-            Regex("""(Starting task(?:\s+from floating window)?: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(Starting task(?:\s+from floating window)?: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
         // ==================== Mask model thinking and action ====================
-        sanitized = sanitized.replace(
-            Regex("""(Thinking: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Action: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Parsing response: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Unknown action format: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Parsing error: [^,]+, input: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(Thinking: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Action: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Parsing response: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Unknown action format: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Parsing error: [^,]+, input: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
         // ==================== Mask app names and package names ====================
         // AppResolver logs
-        sanitized = sanitized.replace(
-            Regex("""(resolvePackageName called with: ')([^']+)(')""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Normalized query: ')([^']+)(')""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Found as package name: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(App: ')([^']+)(' -> )([^\n]+)""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Similarity ')([^']+)(':.*)""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Best match: ')([^']+)(' \()([^)]+)(\).*)""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}***${it.groupValues[5]}" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(No match found for ')([^']+)(')""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(resolvePackageName called with: ')([^']+)(')"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Normalized query: ')([^']+)(')"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Found as package name: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(App: ')([^']+)(' -> )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Similarity ')([^']+)(':.*)"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Best match: ')([^']+)(' \()([^)]+)(\).*)"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}***${it.groupValues[5]}" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(No match found for ')([^']+)(')"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
+
         // ActionHandler logs
-        sanitized = sanitized.replace(
-            Regex("""(Launching app: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Using package name directly: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Resolving app name: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Launching package: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Launch failed for )([^:]+)(:.*)""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
-        
-        sanitized = sanitized.replace(
-            Regex("""(Package not found for ')([^']+)('.*)""")
-        ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(Launching app: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Using package name directly: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Resolving app name: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Launching package: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Launch failed for )([^:]+)(:.*)"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
+
+        sanitized =
+            sanitized.replace(
+                Regex("""(Package not found for ')([^']+)('.*)"""),
+            ) { "${it.groupValues[1]}***${it.groupValues[3]}" }
+
         // ErrorHandler: App not found
-        sanitized = sanitized.replace(
-            Regex("""(App not found: )([^\n]+)""")
-        ) { "${it.groupValues[1]}***" }
-        
+        sanitized =
+            sanitized.replace(
+                Regex("""(App not found: )([^\n]+)"""),
+            ) { "${it.groupValues[1]}***" }
+
         return sanitized
     }
 
@@ -355,13 +387,14 @@ object LogFileManager {
             val cutoffDate = System.currentTimeMillis() - (keepDays * 24 * 60 * 60 * 1000L)
             val logDir = getLogDirectory(context)
 
-            logDir.listFiles { file ->
-                file.isFile && file.name.startsWith(LOG_FILE_PREFIX)
-            }?.forEach { file ->
-                if (file.lastModified() < cutoffDate) {
-                    file.delete()
+            logDir
+                .listFiles { file ->
+                    file.isFile && file.name.startsWith(LOG_FILE_PREFIX)
+                }?.forEach { file ->
+                    if (file.lastModified() < cutoffDate) {
+                        file.delete()
+                    }
                 }
-            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -387,32 +420,30 @@ object LogFileManager {
      * @param context Context for accessing app info
      * @return Formatted device info string
      */
-    fun getDeviceInfo(context: Context): String {
-        return buildString {
-            appendLine("=== AutoGLM Debug Info ===")
-            appendLine()
-            appendLine("App Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-            appendLine("Package: ${BuildConfig.APPLICATION_ID}")
-            appendLine("Build Type: ${BuildConfig.BUILD_TYPE}")
-            appendLine()
-            appendLine("=== Device Info ===")
-            appendLine()
-            appendLine("Manufacturer: ${Build.MANUFACTURER}")
-            appendLine("Model: ${Build.MODEL}")
-            appendLine("Device: ${Build.DEVICE}")
-            appendLine("Product: ${Build.PRODUCT}")
-            appendLine()
-            appendLine("Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-            appendLine("Security Patch: ${Build.VERSION.SECURITY_PATCH}")
-            appendLine()
-            appendLine("=== System Info ===")
-            appendLine()
-            appendLine("Display: ${Build.DISPLAY}")
-            appendLine("Hardware: ${Build.HARDWARE}")
-            appendLine("Board: ${Build.BOARD}")
-            appendLine()
-            appendLine("Generated: ${timestampFormat.format(Date())}")
-        }
+    fun getDeviceInfo(context: Context): String = buildString {
+        appendLine("=== AutoGLM Debug Info ===")
+        appendLine()
+        appendLine("App Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+        appendLine("Package: ${BuildConfig.APPLICATION_ID}")
+        appendLine("Build Type: ${BuildConfig.BUILD_TYPE}")
+        appendLine()
+        appendLine("=== Device Info ===")
+        appendLine()
+        appendLine("Manufacturer: ${Build.MANUFACTURER}")
+        appendLine("Model: ${Build.MODEL}")
+        appendLine("Device: ${Build.DEVICE}")
+        appendLine("Product: ${Build.PRODUCT}")
+        appendLine()
+        appendLine("Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+        appendLine("Security Patch: ${Build.VERSION.SECURITY_PATCH}")
+        appendLine()
+        appendLine("=== System Info ===")
+        appendLine()
+        appendLine("Display: ${Build.DISPLAY}")
+        appendLine("Hardware: ${Build.HARDWARE}")
+        appendLine("Board: ${Build.BOARD}")
+        appendLine()
+        appendLine("Generated: ${timestampFormat.format(Date())}")
     }
 
     /**
@@ -420,9 +451,7 @@ object LogFileManager {
      *
      * @return Total size in bytes
      */
-    fun getTotalLogSize(): Long {
-        return getLogFiles().sumOf { it.length() }
-    }
+    fun getTotalLogSize(): Long = getLogFiles().sumOf { it.length() }
 
     /**
      * Formats a byte size to human-readable string.
@@ -430,12 +459,10 @@ object LogFileManager {
      * @param bytes Size in bytes
      * @return Formatted string (e.g., "1.5 MB")
      */
-    fun formatSize(bytes: Long): String {
-        return when {
-            bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0)
-            else -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
-        }
+    fun formatSize(bytes: Long): String = when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0)
+        else -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
     }
 
     private fun getLogDirectory(context: Context): File {

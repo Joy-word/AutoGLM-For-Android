@@ -29,7 +29,7 @@ data class HistoryStep(
     val screenshotPath: String?,
     val annotatedScreenshotPath: String?,
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
 )
 
 /**
@@ -54,12 +54,12 @@ data class TaskHistory(
     var endTime: Long? = null,
     var success: Boolean = false,
     var completionMessage: String? = null,
-    val steps: MutableList<HistoryStep> = mutableListOf()
+    val steps: MutableList<HistoryStep> = mutableListOf(),
 ) {
     /** Duration of the task in milliseconds. */
     val duration: Long
         get() = (endTime ?: System.currentTimeMillis()) - startTime
-    
+
     /** Number of steps recorded in this task. */
     val stepCount: Int
         get() = steps.size
@@ -81,13 +81,8 @@ sealed class ActionAnnotation {
      * @property screenWidth Actual screen width in pixels
      * @property screenHeight Actual screen height in pixels
      */
-    data class TapCircle(
-        val x: Int,
-        val y: Int,
-        val screenWidth: Int,
-        val screenHeight: Int
-    ) : ActionAnnotation()
-    
+    data class TapCircle(val x: Int, val y: Int, val screenWidth: Int, val screenHeight: Int) : ActionAnnotation()
+
     /**
      * Arrow annotation for swipe actions.
      *
@@ -104,9 +99,9 @@ sealed class ActionAnnotation {
         val endX: Int,
         val endY: Int,
         val screenWidth: Int,
-        val screenHeight: Int
+        val screenHeight: Int,
     ) : ActionAnnotation()
-    
+
     /**
      * Long press annotation (circle with duration indicator).
      *
@@ -121,9 +116,9 @@ sealed class ActionAnnotation {
         val y: Int,
         val screenWidth: Int,
         val screenHeight: Int,
-        val durationMs: Int
+        val durationMs: Int,
     ) : ActionAnnotation()
-    
+
     /**
      * Double tap annotation (two concentric circles).
      *
@@ -132,22 +127,16 @@ sealed class ActionAnnotation {
      * @property screenWidth Actual screen width in pixels
      * @property screenHeight Actual screen height in pixels
      */
-    data class DoubleTapCircle(
-        val x: Int,
-        val y: Int,
-        val screenWidth: Int,
-        val screenHeight: Int
-    ) : ActionAnnotation()
-    
+    data class DoubleTapCircle(val x: Int, val y: Int, val screenWidth: Int, val screenHeight: Int) :
+        ActionAnnotation()
+
     /**
      * Text annotation for type actions.
      *
      * @property text The text that was typed
      */
-    data class TypeText(
-        val text: String
-    ) : ActionAnnotation()
-    
+    data class TypeText(val text: String) : ActionAnnotation()
+
     /**
      * Batch annotation for multiple sequential actions.
      *
@@ -157,12 +146,9 @@ sealed class ActionAnnotation {
      * @property screenWidth Actual screen width in pixels
      * @property screenHeight Actual screen height in pixels
      */
-    data class BatchSteps(
-        val steps: List<ActionAnnotation>,
-        val screenWidth: Int,
-        val screenHeight: Int
-    ) : ActionAnnotation()
-    
+    data class BatchSteps(val steps: List<ActionAnnotation>, val screenWidth: Int, val screenHeight: Int) :
+        ActionAnnotation()
+
     /**
      * No visual annotation needed.
      */

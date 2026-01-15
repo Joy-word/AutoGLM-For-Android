@@ -3,18 +3,48 @@ package com.kevinluo.autoglm.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.kevinluo.autoglm.ComponentManager
-import com.kevinluo.autoglm.action.AgentAction
-import com.kevinluo.autoglm.agent.PhoneAgentListener
+import com.kevinluo.autoglm.task.TaskExecutionManager
 import com.kevinluo.autoglm.util.Logger
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+/**
+ * Data class representing the permission states across the app.
+ *
+ * Used for cross-Fragment state sharing to synchronize permission UI.
+ *
+ * @property shizuku Whether Shizuku permission is granted and connected
+ * @property overlay Whether overlay (draw over other apps) permission is granted
+ * @property keyboard Whether the custom keyboard is enabled
+ * @property battery Whether battery optimization is disabled for the app
+ */
+data class PermissionStates(
+    val shizuku: Boolean = false,
+    val overlay: Boolean = false,
+    val keyboard: Boolean = false,
+    val battery: Boolean = false,
+)
+
+/**
+ * Enum representing the types of permissions the app requires.
+ */
+enum class PermissionType {
+    /** Shizuku permission for system-level operations. */
+    SHIZUKU,
+
+    /** Overlay permission for floating window. */
+    OVERLAY,
+
+    /** Keyboard permission for custom input method. */
+    KEYBOARD,
+
+    /** Battery optimization exemption. */
+    BATTERY,
+}
 
 /**
  * Data class representing the UI state for the main screen.
@@ -37,7 +67,7 @@ data class MainUiState(
     val thinking: String = "",
     val currentAction: String = "",
     val isTaskRunning: Boolean = false,
-    val canStartTask: Boolean = false
+    val canStartTask: Boolean = false,
 )
 
 /**
@@ -47,12 +77,15 @@ data class MainUiState(
 enum class ShizukuStatus {
     /** Shizuku service is not running. */
     NOT_RUNNING,
+
     /** Shizuku is running but permission not granted. */
     NO_PERMISSION,
+
     /** Currently connecting to Shizuku. */
     CONNECTING,
+
     /** Successfully connected to Shizuku. */
-    CONNECTED
+    CONNECTED,
 }
 
 /**
@@ -68,28 +101,28 @@ sealed class MainUiEvent {
      * @property messageResId The string resource ID for the message
      */
     data class ShowToast(val messageResId: Int) : MainUiEvent()
-    
+
     /**
      * Event to show a toast message with a text string.
      *
      * @property message The message text to display
      */
     data class ShowToastText(val message: String) : MainUiEvent()
-    
+
     /**
      * Event indicating task completion.
      *
      * @property message The completion message
      */
     data class TaskCompleted(val message: String) : MainUiEvent()
-    
+
     /**
      * Event indicating task failure.
      *
      * @property error The error message
      */
     data class TaskFailed(val error: String) : MainUiEvent()
-    
+
     /** Event to minimize the app. */
     object MinimizeApp : MainUiEvent()
 }
@@ -97,33 +130,101 @@ sealed class MainUiEvent {
 /**
  * ViewModel for MainActivity.
  *
- * Manages UI state using StateFlow for reactive updates and implements
- * [PhoneAgentListener] to receive callbacks from the agent during task execution.
+ * Manages UI state using StateFlow for reactive updates and observes
+ * [TaskExecutionManager] to receive task execution state updates.
  *
  */
-class MainViewModel(application: Application) : AndroidViewModel(application), PhoneAgentListener {
-    
-    private val componentManager: ComponentManager by lazy {
-        ComponentManager.getInstance(application)
-    }
-    
+class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MainUiState())
-    
+
     /** Observable UI state for the main screen. */
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
-    
+
     private val _events = MutableSharedFlow<MainUiEvent>()
-    
+
     /** Observable stream of one-time UI events. */
     val events = _events.asSharedFlow()
-    
+
     private val _outputLog = MutableStateFlow("")
-    
+
     /** Observable output log for displaying task execution details. */
     val outputLog: StateFlow<String> = _outputLog.asStateFlow()
-    
+
     private val logBuilder = StringBuilder()
-    
+
+    // region Cross-Fragment State Sharing
+
+    private val _permissionStates = MutableStateFlow(PermissionStates())
+
+    /**
+     * Observable permission states for cross-Fragment synchronization.
+     *
+     * When permissions change in SettingsFragment, other Fragments can observe
+     * this StateFlow to update their UI accordingly.
+     */
+    val permissionStates: StateFlow<PermissionStates> = _permissionStates.asStateFlow()
+
+    private val _isServiceConnected = MutableStateFlow(false)
+
+    /**
+     * Observable Shizuku service connection state.
+     *
+     * Indicates whether the UserService is bound and ready for use.
+     */
+    val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
+
+    // endregion
+
+    init {
+        observeTaskState()
+    }
+
+    /**
+     * Observes TaskExecutionManager.taskState and updates _uiState accordingly.
+     *
+     * This replaces the previous PhoneAgentListener implementation.
+     */
+    private fun observeTaskState() {
+        viewModelScope.launch {
+            TaskExecutionManager.taskState.collect { taskState ->
+                Logger.d(TAG, "TaskState updated: status=${taskState.status}, step=${taskState.stepNumber}")
+
+                val isRunning =
+                    taskState.status == TaskStatus.RUNNING ||
+                        taskState.status == TaskStatus.PAUSED
+
+                _uiState.value =
+                    _uiState.value.copy(
+                        taskStatus = taskState.status,
+                        stepNumber = taskState.stepNumber,
+                        thinking = taskState.thinking,
+                        currentAction = taskState.currentAction,
+                        isTaskRunning = isRunning,
+                        canStartTask = calculateCanStartTask(isRunning = isRunning),
+                    )
+
+                // Emit events for task completion/failure
+                when (taskState.status) {
+                    TaskStatus.COMPLETED -> {
+                        if (taskState.resultMessage.isNotEmpty()) {
+                            appendLog("Task completed: ${taskState.resultMessage}")
+                            _events.emit(MainUiEvent.TaskCompleted(taskState.resultMessage))
+                        }
+                    }
+
+                    TaskStatus.FAILED -> {
+                        if (taskState.resultMessage.isNotEmpty()) {
+                            appendLog("Task failed: ${taskState.resultMessage}")
+                            _events.emit(MainUiEvent.TaskFailed(taskState.resultMessage))
+                        }
+                    }
+
+                    else -> { /* No event needed */ }
+                }
+            }
+        }
+    }
+
     /**
      * Updates the Shizuku connection status.
      *
@@ -132,12 +233,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application), P
      */
     fun updateShizukuStatus(status: ShizukuStatus) {
         Logger.d(TAG, "updateShizukuStatus: $status")
-        _uiState.value = _uiState.value.copy(
-            shizukuStatus = status,
-            canStartTask = calculateCanStartTask(status)
-        )
+        _uiState.value =
+            _uiState.value.copy(
+                shizukuStatus = status,
+                canStartTask = calculateCanStartTask(status),
+            )
+        // Sync with permission states for cross-Fragment sharing
+        val isConnected = status == ShizukuStatus.CONNECTED
+        updatePermissionState(PermissionType.SHIZUKU, isConnected)
+        _isServiceConnected.value = isConnected
     }
-    
+
     /**
      * Updates the overlay permission status.
      *
@@ -146,12 +252,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application), P
      */
     fun updateOverlayPermission(hasPermission: Boolean) {
         Logger.d(TAG, "updateOverlayPermission: $hasPermission")
-        _uiState.value = _uiState.value.copy(
-            hasOverlayPermission = hasPermission,
-            canStartTask = calculateCanStartTask(hasOverlayPermission = hasPermission)
-        )
+        _uiState.value =
+            _uiState.value.copy(
+                hasOverlayPermission = hasPermission,
+                canStartTask = calculateCanStartTask(hasOverlayPermission = hasPermission),
+            )
+        // Also update permission states for cross-Fragment synchronization
+        updatePermissionState(PermissionType.OVERLAY, hasPermission)
     }
-    
+
+    // region Cross-Fragment State Update Methods
+
+    /**
+     * Updates a specific permission state.
+     *
+     * This method updates the shared permission states that can be observed
+     * by all Fragments. Use this when a permission is granted or revoked.
+     *
+     * @param type The type of permission being updated
+     * @param granted Whether the permission is granted
+     */
+    fun updatePermissionState(type: PermissionType, granted: Boolean) {
+        Logger.d(TAG, "updatePermissionState: $type = $granted")
+        _permissionStates.value =
+            when (type) {
+                PermissionType.SHIZUKU -> _permissionStates.value.copy(shizuku = granted)
+                PermissionType.OVERLAY -> _permissionStates.value.copy(overlay = granted)
+                PermissionType.KEYBOARD -> _permissionStates.value.copy(keyboard = granted)
+                PermissionType.BATTERY -> _permissionStates.value.copy(battery = granted)
+            }
+    }
+
+    /**
+     * Updates all permission states at once.
+     *
+     * Use this method when initializing or refreshing all permission states.
+     *
+     * @param states The new permission states
+     */
+    fun updateAllPermissionStates(states: PermissionStates) {
+        Logger.d(TAG, "updateAllPermissionStates: $states")
+        _permissionStates.value = states
+    }
+
+    /**
+     * Sets the Shizuku service connection state.
+     *
+     * @param connected Whether the service is connected
+     */
+    fun setServiceConnected(connected: Boolean) {
+        Logger.d(TAG, "setServiceConnected: $connected")
+        _isServiceConnected.value = connected
+        // Also update Shizuku permission state
+        updatePermissionState(PermissionType.SHIZUKU, connected)
+    }
+
+    // endregion
+
     /**
      * Updates the task input availability based on whether text is entered.
      *
@@ -159,11 +316,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application), P
      *
      */
     fun updateTaskInput(hasText: Boolean) {
-        _uiState.value = _uiState.value.copy(
-            canStartTask = calculateCanStartTask(hasTaskText = hasText)
-        )
+        _uiState.value =
+            _uiState.value.copy(
+                canStartTask = calculateCanStartTask(hasTaskText = hasText),
+            )
     }
-    
+
     /**
      * Calculates whether a new task can be started based on current state.
      *
@@ -177,15 +335,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application), P
         status: ShizukuStatus = _uiState.value.shizukuStatus,
         hasOverlayPermission: Boolean = _uiState.value.hasOverlayPermission,
         hasTaskText: Boolean = true,
-        isRunning: Boolean = _uiState.value.isTaskRunning
-    ): Boolean {
-        return status == ShizukuStatus.CONNECTED &&
-               hasOverlayPermission &&
-               hasTaskText &&
-               !isRunning &&
-               componentManager.phoneAgent != null
-    }
-    
+        isRunning: Boolean = _uiState.value.isTaskRunning,
+    ): Boolean = status == ShizukuStatus.CONNECTED &&
+        hasOverlayPermission &&
+        hasTaskText &&
+        !isRunning &&
+        TaskExecutionManager.canStartTask()
+
     /**
      * Starts a new task with the given description.
      *
@@ -193,222 +349,93 @@ class MainViewModel(application: Application) : AndroidViewModel(application), P
      *
      */
     fun startTask(taskDescription: String) {
-        val agent = componentManager.phoneAgent ?: return
-        
-        if (agent.isRunning()) {
-            appendLog("Error: A task is already running")
-            Logger.w(TAG, "Attempted to start task while another is running")
+        if (!TaskExecutionManager.canStartTask()) {
+            appendLog("Error: Cannot start task - preconditions not met")
+            Logger.w(TAG, "Cannot start task: preconditions not met")
             return
         }
-        
+
         // Clear previous output
         logBuilder.clear()
         _outputLog.value = ""
-        
-        // Update UI state
-        _uiState.value = _uiState.value.copy(
-            taskStatus = TaskStatus.RUNNING,
-            isTaskRunning = true,
-            stepNumber = 0,
-            thinking = "",
-            currentAction = "",
-            canStartTask = false
-        )
-        
+
         Logger.d(TAG, "Starting task: ${taskDescription.take(50)}...")
         appendLog("Starting task: $taskDescription")
-        
+
+        // Notify state manager that task is starting
+        FloatingWindowStateManager.onTaskStarted(getApplication())
+
         viewModelScope.launch {
             // Minimize app
             _events.emit(MainUiEvent.MinimizeApp)
-            
-            try {
-                val result = agent.run(taskDescription)
-                
-                withContext(Dispatchers.Main) {
-                    if (result.success) {
-                        Logger.i(TAG, "Task completed successfully: ${result.message}")
-                        _uiState.value = _uiState.value.copy(
-                            taskStatus = TaskStatus.COMPLETED,
-                            isTaskRunning = false
-                        )
-                        appendLog("Task completed: ${result.message}")
-                        appendLog("Total steps: ${result.stepCount}")
-                        _events.emit(MainUiEvent.TaskCompleted(result.message))
-                    } else {
-                        Logger.w(TAG, "Task failed: ${result.message}")
-                        _uiState.value = _uiState.value.copy(
-                            taskStatus = TaskStatus.FAILED,
-                            isTaskRunning = false
-                        )
-                        appendLog("Task failed: ${result.message}")
-                        _events.emit(MainUiEvent.TaskFailed(result.message))
-                    }
-                    updateCanStartTask()
-                }
-            } catch (e: Exception) {
-                Logger.e(TAG, "Task error", e)
-                withContext(Dispatchers.Main) {
-                    _uiState.value = _uiState.value.copy(
-                        taskStatus = TaskStatus.FAILED,
-                        isTaskRunning = false
-                    )
-                    appendLog("Task error: ${e.message}")
-                    _events.emit(MainUiEvent.TaskFailed(e.message ?: "Unknown error"))
-                    updateCanStartTask()
-                }
-            }
         }
+
+        // Start task via TaskExecutionManager
+        TaskExecutionManager.startTask(taskDescription)
     }
-    
+
     /**
      * Cancels the currently running task.
      *
      */
     fun cancelTask() {
         Logger.d(TAG, "Cancelling task")
-        componentManager.phoneAgent?.cancel()
-        _uiState.value = _uiState.value.copy(
-            taskStatus = TaskStatus.FAILED,
-            isTaskRunning = false
-        )
+        TaskExecutionManager.cancelTask()
         appendLog("Task cancelled by user")
-        updateCanStartTask()
+        // Notify state manager that task completed
+        FloatingWindowStateManager.onTaskCompleted()
     }
-    
+
     /**
-     * Updates the canStartTask flag based on current state.
+     * Pauses the currently running task.
      */
-    private fun updateCanStartTask() {
-        _uiState.value = _uiState.value.copy(
-            canStartTask = calculateCanStartTask()
-        )
+    fun pauseTask() {
+        Logger.d(TAG, "Pausing task")
+        val paused = TaskExecutionManager.pauseTask()
+        if (paused) {
+            appendLog("Task paused by user")
+        } else {
+            Logger.w(TAG, "Failed to pause task - not running")
+        }
     }
-    
+
+    /**
+     * Resumes the paused task.
+     */
+    fun resumeTask() {
+        Logger.d(TAG, "Resuming task")
+        val resumed = TaskExecutionManager.resumeTask()
+        if (resumed) {
+            appendLog("Task resumed by user")
+        } else {
+            Logger.w(TAG, "Failed to resume task - not paused")
+        }
+    }
+
+    /**
+     * Resets the agent state before starting a new task.
+     */
+    fun resetAgent() {
+        Logger.d(TAG, "Resetting agent")
+        TaskExecutionManager.resetTask()
+        logBuilder.clear()
+        _outputLog.value = ""
+    }
+
     /**
      * Appends a timestamped message to the output log.
      *
      * @param message The message to append
      */
     private fun appendLog(message: String) {
-        val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-            .format(java.util.Date())
+        val timestamp =
+            java.text
+                .SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date())
         logBuilder.append("[$timestamp] $message\n")
         _outputLog.value = logBuilder.toString()
     }
-    
-    // region PhoneAgentListener Implementation
-    
-    /**
-     * Called when a new step starts in the task execution.
-     *
-     * @param stepNumber The step number that is starting
-     *
-     */
-    override fun onStepStarted(stepNumber: Int) {
-        viewModelScope.launch(Dispatchers.Main) {
-            Logger.d(TAG, "Step $stepNumber started")
-            _uiState.value = _uiState.value.copy(stepNumber = stepNumber)
-            appendLog("Step $stepNumber started")
-        }
-    }
-    
-    /**
-     * Called when the model's thinking text is updated.
-     *
-     * @param thinking The current thinking text from the model
-     *
-     */
-    override fun onThinkingUpdate(thinking: String) {
-        viewModelScope.launch(Dispatchers.Main) {
-            _uiState.value = _uiState.value.copy(thinking = thinking)
-            if (thinking.isNotBlank()) {
-                appendLog("Thinking: ${thinking.take(100)}${if (thinking.length > 100) "..." else ""}")
-            }
-        }
-    }
-    
-    /**
-     * Called when an action is executed.
-     *
-     * @param action The action that was executed
-     *
-     */
-    override fun onActionExecuted(action: AgentAction) {
-        viewModelScope.launch(Dispatchers.Main) {
-            Logger.d(TAG, "Action executed: ${action.formatForDisplay()}")
-            _uiState.value = _uiState.value.copy(currentAction = action.formatForDisplay())
-            appendLog("Action: ${action.formatForDisplay()}")
-        }
-    }
-    
-    /**
-     * Called when the task completes successfully.
-     *
-     * @param message The completion message
-     *
-     */
-    override fun onTaskCompleted(message: String) {
-        viewModelScope.launch(Dispatchers.Main) {
-            Logger.i(TAG, "Task completed: $message")
-            _uiState.value = _uiState.value.copy(
-                taskStatus = TaskStatus.COMPLETED,
-                isTaskRunning = false
-            )
-            appendLog("Task completed: $message")
-            updateCanStartTask()
-        }
-    }
-    
-    /**
-     * Called when the task fails.
-     *
-     * @param error The error message
-     *
-     */
-    override fun onTaskFailed(error: String) {
-        viewModelScope.launch(Dispatchers.Main) {
-            Logger.e(TAG, "Task failed: $error")
-            _uiState.value = _uiState.value.copy(
-                taskStatus = TaskStatus.FAILED,
-                isTaskRunning = false
-            )
-            appendLog("Task failed: $error")
-            updateCanStartTask()
-        }
-    }
-    
-    /**
-     * Called when screenshot capture starts.
-     *
-     * Handled by FloatingWindowService.
-     *
-     */
-    override fun onScreenshotStarted() {
-        // Handled by FloatingWindowService
-    }
-    
-    /**
-     * Called when screenshot capture completes.
-     *
-     * Handled by FloatingWindowService.
-     *
-     */
-    override fun onScreenshotCompleted() {
-        // Handled by FloatingWindowService
-    }
-    
-    /**
-     * Called when the floating window needs to be refreshed.
-     *
-     */
-    override fun onFloatingWindowRefreshNeeded() {
-        Logger.d(TAG, "Floating window refresh needed")
-        FloatingWindowService.getInstance()?.bringToFront()
-    }
-    
-    // endregion
-    
+
     companion object {
         private const val TAG = "MainViewModel"
     }

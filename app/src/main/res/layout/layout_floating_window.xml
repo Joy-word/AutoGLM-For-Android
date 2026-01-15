@@ -64,7 +64,7 @@
                 android:contentDescription="@string/floating_open_app"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_open_app"
-                android:tint="@color/icon_tertiary" />
+                app:tint="@color/icon_secondary" />
 
             <!-- Minimize button -->
             <ImageButton
@@ -76,7 +76,7 @@
                 android:contentDescription="@string/floating_minimize"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_minus"
-                android:tint="@color/icon_tertiary" />
+                app:tint="@color/icon_secondary" />
 
             <!-- Close button -->
             <ImageButton
@@ -88,7 +88,7 @@
                 android:contentDescription="@string/dialog_cancel"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_close"
-                android:tint="@color/icon_tertiary" />
+                app:tint="@color/icon_secondary" />
         </LinearLayout>
 
         <!-- Task Input Area (shown when idle) -->
@@ -147,11 +147,13 @@
                 android:layout_height="40dp"
                 android:layout_marginTop="10dp"
                 android:text="@string/start_task"
+                android:textColor="@color/on_primary"
                 android:textSize="13sp"
                 app:backgroundTint="@color/primary"
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_play"
                 app:iconGravity="textStart"
+                app:iconTint="@color/on_primary"
                 app:iconSize="18dp" />
 
         </LinearLayout>
@@ -203,12 +205,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="36dp"
                     android:text="@string/pause_task"
+                    android:textColor="@color/primary"
                     android:textSize="12sp"
                     android:visibility="visible"
-                    app:backgroundTint="@color/status_waiting"
+                    app:backgroundTint="@color/button_secondary"
                     app:cornerRadius="8dp"
                     app:icon="@drawable/ic_pause"
                     app:iconGravity="textStart"
+                    app:iconTint="@color/primary"
                     app:iconSize="16dp" />
 
                 <!-- Resume button (shown when paused) -->
@@ -217,12 +221,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="36dp"
                     android:text="@string/resume_task"
+                    android:textColor="@color/on_primary"
                     android:textSize="12sp"
                     android:visibility="gone"
-                    app:backgroundTint="@color/status_running"
+                    app:backgroundTint="@color/primary"
                     app:cornerRadius="8dp"
                     app:icon="@drawable/ic_play"
                     app:iconGravity="textStart"
+                    app:iconTint="@color/on_primary"
                     app:iconSize="16dp" />
 
             </FrameLayout>
@@ -235,12 +241,14 @@
                 android:layout_weight="1"
                 android:layout_marginStart="4dp"
                 android:text="@string/cancel_task"
+                android:textColor="@color/primary"
                 android:textSize="12sp"
                 android:visibility="visible"
-                app:backgroundTint="@color/status_error"
+                app:backgroundTint="@color/button_secondary"
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_stop"
                 app:iconGravity="textStart"
+                app:iconTint="@color/primary"
                 app:iconSize="16dp" />
 
         </LinearLayout>
@@ -252,12 +260,14 @@
             android:layout_height="36dp"
             android:layout_margin="8dp"
             android:text="@string/floating_new_task"
+            android:textColor="@color/on_primary"
             android:textSize="12sp"
             android:visibility="gone"
             app:backgroundTint="@color/primary"
             app:cornerRadius="8dp"
             app:icon="@drawable/ic_plus"
             app:iconGravity="textStart"
+            app:iconTint="@color/on_primary"
             app:iconSize="16dp" />
 
     </LinearLayout>

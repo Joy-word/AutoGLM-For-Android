@@ -7,10 +7,18 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.*
-import okhttp3.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
@@ -41,7 +49,7 @@ data class ModelConfig(
     val temperature: Float = 0.0f,
     val topP: Float = 0.85f,
     val frequencyPenalty: Float = 0.2f,
-    val timeoutSeconds: Long = 120
+    val timeoutSeconds: Long = 120,
 )
 
 /**
@@ -62,7 +70,7 @@ data class ModelResponse(
     val action: String,
     val rawContent: String,
     val timeToFirstToken: Long?,
-    val totalTime: Long?
+    val totalTime: Long?,
 )
 
 /**
@@ -81,12 +89,11 @@ sealed class ChatMessage {
     data class System(val content: String) : ChatMessage()
 
     /**
-     * User message, optionally including an image.
+     * User message containing text content.
      *
      * @property text The text content of the user message
-     * @property imageBase64 Optional base64-encoded image data
      */
-    data class User(val text: String, val imageBase64: String? = null) : ChatMessage()
+    data class User(val text: String) : ChatMessage()
 
     /**
      * Assistant message representing the model's response.
@@ -95,7 +102,6 @@ sealed class ChatMessage {
      */
     data class Assistant(val content: String) : ChatMessage()
 }
-
 
 /**
  * DTO for serializing messages to the API.
@@ -107,10 +113,7 @@ sealed class ChatMessage {
  *
  */
 @Serializable
-data class MessageDto(
-    val role: String,
-    val content: JsonElement
-) {
+data class MessageDto(val role: String, val content: JsonElement) {
     companion object {
         /**
          * Creates a MessageDto from a ChatMessage.
@@ -119,40 +122,50 @@ data class MessageDto(
          * user messages with images.
          *
          * @param message The ChatMessage to convert
+         * @param imageBase64 Optional base64-encoded image to attach (only for User messages)
          * @return A MessageDto suitable for API serialization
          */
-        fun fromChatMessage(message: ChatMessage): MessageDto {
-            return when (message) {
-                is ChatMessage.System -> MessageDto(
+        fun fromChatMessage(message: ChatMessage, imageBase64: String? = null): MessageDto = when (message) {
+            is ChatMessage.System -> {
+                MessageDto(
                     role = "system",
-                    content = JsonPrimitive(message.content)
+                    content = JsonPrimitive(message.content),
                 )
-                is ChatMessage.Assistant -> MessageDto(
+            }
+
+            is ChatMessage.Assistant -> {
+                MessageDto(
                     role = "assistant",
-                    content = JsonPrimitive(message.content)
+                    content = JsonPrimitive(message.content),
                 )
-                is ChatMessage.User -> {
-                    if (message.imageBase64 != null) {
-                        // Multi-modal content with text and image
-                        // Detect image format from base64 header or default to PNG
-                        val mimeType = detectImageMimeType(message.imageBase64)
-                        val contentParts = buildJsonArray {
-                            add(buildJsonObject {
-                                put("type", "text")
-                                put("text", message.text)
-                            })
-                            add(buildJsonObject {
-                                put("type", "image_url")
-                                putJsonObject("image_url") {
-                                    put("url", "data:$mimeType;base64,${message.imageBase64}")
-                                }
-                            })
+            }
+
+            is ChatMessage.User -> {
+                if (imageBase64 != null) {
+                    // Multi-modal content with text and image
+                    // Detect image format from base64 header or default to PNG
+                    val mimeType = detectImageMimeType(imageBase64)
+                    val contentParts =
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("type", "text")
+                                    put("text", message.text)
+                                },
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("type", "image_url")
+                                    putJsonObject("image_url") {
+                                        put("url", "data:$mimeType;base64,$imageBase64")
+                                    }
+                                },
+                            )
                         }
-                        MessageDto(role = "user", content = contentParts)
-                    } else {
-                        // Text-only content
-                        MessageDto(role = "user", content = JsonPrimitive(message.text))
-                    }
+                    MessageDto(role = "user", content = contentParts)
+                } else {
+                    // Text-only content
+                    MessageDto(role = "user", content = JsonPrimitive(message.text))
                 }
             }
         }
@@ -198,7 +211,7 @@ data class ContentPart(
     val type: String,
     val text: String? = null,
     @SerialName("image_url")
-    val imageUrl: ImageUrl? = null
+    val imageUrl: ImageUrl? = null,
 )
 
 /**
@@ -210,9 +223,7 @@ data class ContentPart(
  *
  */
 @Serializable
-data class ImageUrl(
-    val url: String
-)
+data class ImageUrl(val url: String)
 
 /**
  * Chat completion request body.
@@ -239,7 +250,7 @@ data class ChatCompletionRequest(
     val topP: Float,
     @SerialName("frequency_penalty")
     val frequencyPenalty: Float,
-    val stream: Boolean = true
+    val stream: Boolean = true,
 )
 
 /**
@@ -251,9 +262,7 @@ data class ChatCompletionRequest(
  *
  */
 @Serializable
-data class ChatCompletionChunk(
-    val choices: List<ChunkChoice> = emptyList()
-)
+data class ChatCompletionChunk(val choices: List<ChunkChoice> = emptyList())
 
 /**
  * Choice in a streaming chunk.
@@ -264,9 +273,7 @@ data class ChatCompletionChunk(
  *
  */
 @Serializable
-data class ChunkChoice(
-    val delta: Delta = Delta()
-)
+data class ChunkChoice(val delta: Delta = Delta())
 
 /**
  * Delta content in streaming response.
@@ -277,10 +284,7 @@ data class ChunkChoice(
  *
  */
 @Serializable
-data class Delta(
-    val content: String? = null
-)
-
+data class Delta(val content: String? = null)
 
 /**
  * Sealed class representing network errors.
@@ -355,14 +359,15 @@ sealed class ModelResult {
  *
  */
 class ModelClient(private val config: ModelConfig) {
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
 
     private val client: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(config.timeoutSeconds, TimeUnit.SECONDS)
             .readTimeout(config.timeoutSeconds, TimeUnit.SECONDS)
             .writeTimeout(config.timeoutSeconds, TimeUnit.SECONDS)
@@ -393,329 +398,199 @@ class ModelClient(private val config: ModelConfig) {
      * is accumulated and parsed to extract thinking and action components.
      *
      * @param messages List of chat messages to send to the model
+     * @param currentScreenshot Optional base64-encoded screenshot to attach to the last user message
      * @return ModelResult containing either the parsed response or an error
      */
-    suspend fun request(messages: List<ChatMessage>): ModelResult = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-        var timeToFirstToken: Long? = null
+    suspend fun request(messages: List<ChatMessage>, currentScreenshot: String? = null): ModelResult =
+        withContext(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
+            var timeToFirstToken: Long? = null
 
-        val url = "${config.baseUrl}/chat/completions"
-        Logger.logNetworkRequest("POST", url)
+            val url = "${config.baseUrl}/chat/completions"
+            Logger.logNetworkRequest("POST", url)
 
-        try {
-            val messageDtos = messages.map { MessageDto.fromChatMessage(it) }
-            Logger.d(TAG, "Preparing request with ${messageDtos.size} messages")
-
-            val requestBody = ChatCompletionRequest(
-                model = config.modelName,
-                messages = messageDtos,
-                maxTokens = config.maxTokens,
-                temperature = config.temperature,
-                topP = config.topP,
-                frequencyPenalty = config.frequencyPenalty,
-                stream = true
-            )
-
-            val requestJson = json.encodeToString(requestBody)
-
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer ${config.apiKey}")
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "text/event-stream")
-                .post(requestJson.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val contentBuilder = StringBuilder()
-
-            suspendCancellableCoroutine<ModelResult> { continuation ->
-                val eventSourceFactory = EventSources.createFactory(client)
-
-                val eventSourceListener = object : EventSourceListener() {
-                    override fun onOpen(eventSource: EventSource, response: Response) {
-                        // Connection opened
-                    }
-
-                    override fun onEvent(
-                        eventSource: EventSource,
-                        id: String?,
-                        type: String?,
-                        data: String
-                    ) {
-                        if (data == "[DONE]") {
-                            val totalTime = System.currentTimeMillis() - startTime
-                            val rawContent = contentBuilder.toString()
-                            val (thinking, action) = parseThinkingAndAction(rawContent)
-
-                            Logger.logNetworkResponse(HTTP_STATUS_OK, totalTime)
-                            Logger.d(TAG, "Response complete: ${rawContent.length} chars, TTFT=${timeToFirstToken}ms")
-
-                            val response = ModelResponse(
-                                thinking = thinking,
-                                action = action,
-                                rawContent = rawContent,
-                                timeToFirstToken = timeToFirstToken,
-                                totalTime = totalTime
-                            )
-
-                            if (continuation.isActive) {
-                                continuation.resume(ModelResult.Success(response))
-                            }
-                            return
-                        }
-
-                        try {
-                            val chunk = json.decodeFromString<ChatCompletionChunk>(data)
-                            val content = chunk.choices.firstOrNull()?.delta?.content
-
-                            if (content != null) {
-                                if (timeToFirstToken == null) {
-                                    timeToFirstToken = System.currentTimeMillis() - startTime
-                                    Logger.d(TAG, "First token received after ${timeToFirstToken}ms")
-                                }
-                                contentBuilder.append(content)
-                            }
-                        } catch (e: Exception) {
-                            // Ignore parse errors for individual chunks
-                            Logger.v(TAG, "Chunk parse error (ignored): ${e.message}")
+            try {
+                // Convert messages to DTOs, attaching screenshot to the last user message
+                val messageDtos =
+                    messages.mapIndexed { index, message ->
+                        val isLastUserMessage = index == messages.indexOfLast { it is ChatMessage.User }
+                        if (isLastUserMessage && message is ChatMessage.User) {
+                            MessageDto.fromChatMessage(message, currentScreenshot)
+                        } else {
+                            MessageDto.fromChatMessage(message)
                         }
                     }
+                Logger.d(TAG, "Preparing request with ${messageDtos.size} messages")
 
-                    override fun onClosed(eventSource: EventSource) {
-                        // If we haven't resumed yet, do so with what we have
-                        if (continuation.isActive) {
-                            val totalTime = System.currentTimeMillis() - startTime
-                            val rawContent = contentBuilder.toString()
+                val requestBody =
+                    ChatCompletionRequest(
+                        model = config.modelName,
+                        messages = messageDtos,
+                        maxTokens = config.maxTokens,
+                        temperature = config.temperature,
+                        topP = config.topP,
+                        frequencyPenalty = config.frequencyPenalty,
+                        stream = true,
+                    )
 
-                            if (rawContent.isNotEmpty()) {
-                                val (thinking, action) = parseThinkingAndAction(rawContent)
-                                val response = ModelResponse(
-                                    thinking = thinking,
-                                    action = action,
-                                    rawContent = rawContent,
-                                    timeToFirstToken = timeToFirstToken,
-                                    totalTime = totalTime
-                                )
-                                continuation.resume(ModelResult.Success(response))
-                            } else {
-                                Logger.logNetworkError("Empty response received")
-                                continuation.resume(
-                                    ModelResult.Error(NetworkError.ParseError("Empty response"))
-                                )
+                val requestJson = json.encodeToString(requestBody)
+
+                val request =
+                    Request
+                        .Builder()
+                        .url(url)
+                        .addHeader("Authorization", "Bearer ${config.apiKey}")
+                        .addHeader("Content-Type", "application/json")
+                        .addHeader("Accept", "text/event-stream")
+                        .post(requestJson.toRequestBody("application/json".toMediaType()))
+                        .build()
+
+                val contentBuilder = StringBuilder()
+
+                suspendCancellableCoroutine<ModelResult> { continuation ->
+                    val eventSourceFactory = EventSources.createFactory(client)
+
+                    val eventSourceListener =
+                        object : EventSourceListener() {
+                            override fun onOpen(eventSource: EventSource, response: Response) {
+                                // Connection opened
                             }
-                        }
-                    }
 
-                    override fun onFailure(
-                        eventSource: EventSource,
-                        t: Throwable?,
-                        response: Response?
-                    ) {
-                        if (continuation.isActive) {
-                            val error = when {
-                                t is java.net.SocketTimeoutException -> {
-                                    Logger.logNetworkError("Request timeout", t)
-                                    NetworkError.Timeout(config.timeoutSeconds * MILLIS_PER_SECOND)
-                                }
-                                t is IOException -> {
-                                    Logger.logNetworkError("Connection failed: ${t.message}", t)
-                                    NetworkError.ConnectionFailed(t.message ?: "Connection failed")
-                                }
-                                response != null && !response.isSuccessful -> {
-                                    Logger.logNetworkError("Server error ${response.code}: ${response.message}")
-                                    NetworkError.ServerError(
-                                        response.code,
-                                        response.message.ifEmpty { "Server error" }
+                            override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+                                if (data == "[DONE]") {
+                                    val totalTime = System.currentTimeMillis() - startTime
+                                    val rawContent = contentBuilder.toString()
+                                    val (thinking, action) = ModelResponseParser.parseThinkingAndAction(rawContent)
+
+                                    Logger.logNetworkResponse(HTTP_STATUS_OK, totalTime)
+                                    Logger.d(
+                                        TAG,
+                                        "Response complete: ${rawContent.length} chars, TTFT=${timeToFirstToken}ms",
                                     )
+
+                                    val response =
+                                        ModelResponse(
+                                            thinking = thinking,
+                                            action = action,
+                                            rawContent = rawContent,
+                                            timeToFirstToken = timeToFirstToken,
+                                            totalTime = totalTime,
+                                        )
+
+                                    if (continuation.isActive) {
+                                        continuation.resume(ModelResult.Success(response))
+                                    }
+                                    return
                                 }
-                                else -> {
-                                    Logger.logNetworkError("Unknown error: ${t?.message}", t)
-                                    NetworkError.ConnectionFailed(t?.message ?: "Unknown error")
+
+                                try {
+                                    val chunk = json.decodeFromString<ChatCompletionChunk>(data)
+                                    val content =
+                                        chunk.choices
+                                            .firstOrNull()
+                                            ?.delta
+                                            ?.content
+
+                                    if (content != null) {
+                                        if (timeToFirstToken == null) {
+                                            timeToFirstToken = System.currentTimeMillis() - startTime
+                                            Logger.d(TAG, "First token received after ${timeToFirstToken}ms")
+                                        }
+                                        contentBuilder.append(content)
+                                    }
+                                } catch (e: Exception) {
+                                    // Ignore parse errors for individual chunks
+                                    Logger.v(TAG, "Chunk parse error (ignored): ${e.message}")
                                 }
                             }
-                            continuation.resume(ModelResult.Error(error))
+
+                            override fun onClosed(eventSource: EventSource) {
+                                // If we haven't resumed yet, do so with what we have
+                                if (continuation.isActive) {
+                                    val totalTime = System.currentTimeMillis() - startTime
+                                    val rawContent = contentBuilder.toString()
+
+                                    if (rawContent.isNotEmpty()) {
+                                        val (thinking, action) = ModelResponseParser.parseThinkingAndAction(rawContent)
+                                        val response =
+                                            ModelResponse(
+                                                thinking = thinking,
+                                                action = action,
+                                                rawContent = rawContent,
+                                                timeToFirstToken = timeToFirstToken,
+                                                totalTime = totalTime,
+                                            )
+                                        continuation.resume(ModelResult.Success(response))
+                                    } else {
+                                        Logger.logNetworkError("Empty response received")
+                                        continuation.resume(
+                                            ModelResult.Error(NetworkError.ParseError("Empty response")),
+                                        )
+                                    }
+                                }
+                            }
+
+                            override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
+                                if (continuation.isActive) {
+                                    val error =
+                                        when {
+                                            t is java.net.SocketTimeoutException -> {
+                                                Logger.logNetworkError("Request timeout", t)
+                                                NetworkError.Timeout(config.timeoutSeconds * MILLIS_PER_SECOND)
+                                            }
+
+                                            t is IOException -> {
+                                                Logger.logNetworkError("Connection failed: ${t.message}", t)
+                                                NetworkError.ConnectionFailed(t.message ?: "Connection failed")
+                                            }
+
+                                            response != null && !response.isSuccessful -> {
+                                                Logger.logNetworkError(
+                                                    "Server error ${response.code}: ${response.message}",
+                                                )
+                                                NetworkError.ServerError(
+                                                    response.code,
+                                                    response.message.ifEmpty { "Server error" },
+                                                )
+                                            }
+
+                                            else -> {
+                                                Logger.logNetworkError("Unknown error: ${t?.message}", t)
+                                                NetworkError.ConnectionFailed(t?.message ?: "Unknown error")
+                                            }
+                                        }
+                                    continuation.resume(ModelResult.Error(error))
+                                }
+                            }
                         }
+
+                    val eventSource = eventSourceFactory.newEventSource(request, eventSourceListener)
+                    currentEventSource = eventSource
+
+                    continuation.invokeOnCancellation {
+                        Logger.d(TAG, "Request cancelled via coroutine cancellation")
+                        eventSource.cancel()
+                        currentEventSource = null
                     }
                 }
+            } catch (e: Exception) {
+                currentEventSource = null
+                Logger.logNetworkError("Request failed: ${e.message}", e)
+                when (e) {
+                    is java.net.SocketTimeoutException -> {
+                        ModelResult.Error(NetworkError.Timeout(config.timeoutSeconds * MILLIS_PER_SECOND))
+                    }
 
-                val eventSource = eventSourceFactory.newEventSource(request, eventSourceListener)
-                currentEventSource = eventSource
+                    is IOException -> {
+                        ModelResult.Error(NetworkError.ConnectionFailed(e.message ?: "Connection failed"))
+                    }
 
-                continuation.invokeOnCancellation {
-                    Logger.d(TAG, "Request cancelled via coroutine cancellation")
-                    eventSource.cancel()
-                    currentEventSource = null
+                    else -> {
+                        ModelResult.Error(NetworkError.ConnectionFailed(e.message ?: "Unknown error"))
+                    }
                 }
             }
-        } catch (e: Exception) {
-            currentEventSource = null
-            Logger.logNetworkError("Request failed: ${e.message}", e)
-            when (e) {
-                is java.net.SocketTimeoutException ->
-                    ModelResult.Error(NetworkError.Timeout(config.timeoutSeconds * MILLIS_PER_SECOND))
-                is IOException ->
-                    ModelResult.Error(NetworkError.ConnectionFailed(e.message ?: "Connection failed"))
-                else ->
-                    ModelResult.Error(NetworkError.ConnectionFailed(e.message ?: "Unknown error"))
-            }
         }
-    }
-
-    /**
-     * Parses the thinking and action from the model response content.
-     *
-     * The response format typically contains:
-     * - Thinking section (before the action)
-     * - Action in format: do(action="...", ...) or finish(message="...")
-     *
-     * Note: The model may wrap content in <think> and <answer> tags, which we strip out.
-     *
-     * @param content The raw response content to parse
-     * @return Pair of (thinking, action) strings
-     */
-    private fun parseThinkingAndAction(content: String): Pair<String, String> {
-        // Clean up the content by removing all XML-style tags
-        val cleanContent = content
-            .replace(Regex("""<think>\s*"""), "")
-            .replace(Regex("""\s*</think>"""), "")
-            .replace(Regex("""<answer>\s*"""), "")
-            .replace(Regex("""\s*</answer>"""), "")
-            .trim()
-
-        // Find action using bracket-aware matching to handle nested parentheses
-        val doAction = findActionWithBalancedParens(cleanContent, "do")
-        val finishAction = findActionWithBalancedParens(cleanContent, "finish")
-
-        // Find the earliest action match
-        val actionMatch = listOfNotNull(doAction, finishAction)
-            .minByOrNull { it.first }
-
-        return if (actionMatch != null) {
-            val thinking = cleanContent.substring(0, actionMatch.first).trim()
-            val action = actionMatch.second.trim()
-            Pair(thinking, action)
-        } else {
-            // No action found, entire content is thinking
-            Pair(cleanContent, "")
-        }
-    }
-
-    /**
-     * Finds an action pattern with balanced parentheses.
-     *
-     * This correctly handles nested parentheses in text content like:
-     * do(action=Type, text="hello (world)")
-     *
-     * @param content The content to search in
-     * @param actionName The action name to find ("do" or "finish")
-     * @return Pair of (startIndex, matchedString) or null if not found
-     */
-    private fun findActionWithBalancedParens(content: String, actionName: String): Pair<Int, String>? {
-        // Find the start of the action pattern (actionName followed by optional whitespace and '(')
-        val startPattern = Regex("""$actionName\s*\(""")
-        val startMatch = startPattern.find(content) ?: return null
-
-        val startIndex = startMatch.range.first
-        val openParenIndex = startMatch.range.last // Index of '('
-
-        // Now find the matching closing parenthesis, accounting for nesting and quotes
-        var depth = 1
-        var i = openParenIndex + 1
-        var inDoubleQuote = false
-        var inSingleQuote = false
-        var escaped = false
-
-        while (i < content.length && depth > 0) {
-            val char = content[i]
-
-            if (escaped) {
-                escaped = false
-                i++
-                continue
-            }
-
-            when (char) {
-                '\\' -> escaped = true
-                '"' -> if (!inSingleQuote) inDoubleQuote = !inDoubleQuote
-                '\'' -> if (!inDoubleQuote) inSingleQuote = !inSingleQuote
-                '(' -> if (!inDoubleQuote && !inSingleQuote) depth++
-                ')' -> if (!inDoubleQuote && !inSingleQuote) depth--
-            }
-            i++
-        }
-
-        return if (depth == 0) {
-            Pair(startIndex, content.substring(startIndex, i))
-        } else {
-            // Unbalanced parentheses, fall back to simple match
-            null
-        }
-    }
-
-    /**
-     * Checks if the response indicates task completion.
-     *
-     * @param action The action string to check
-     * @return True if the action is a finish action
-     */
-    fun isFinishAction(action: String): Boolean {
-        return action.startsWith("finish(") || action.startsWith("finish (")
-    }
-
-    /**
-     * Checks if the response indicates a do action.
-     *
-     * @param action The action string to check
-     * @return True if the action is a do action
-     */
-    fun isDoAction(action: String): Boolean {
-        return action.startsWith("do(") || action.startsWith("do (")
-    }
-
-    /**
-     * Extracts the finish message from a finish action.
-     *
-     * Handles escaped quotes within the message.
-     *
-     * @param action The finish action string
-     * @return The extracted message, or null if not a valid finish action
-     */
-    fun extractFinishMessage(action: String): String? {
-        if (!isFinishAction(action)) return null
-
-        // Find message= followed by a quote
-        val messageStartPattern = Regex("""message\s*=\s*["']""")
-        val startMatch = messageStartPattern.find(action) ?: return null
-
-        val quoteChar = action[startMatch.range.last]
-        val contentStart = startMatch.range.last + 1
-
-        // Find the closing quote, handling escaped quotes
-        val result = StringBuilder()
-        var i = contentStart
-        var escaped = false
-
-        while (i < action.length) {
-            val char = action[i]
-
-            if (escaped) {
-                result.append(char)
-                escaped = false
-                i++
-                continue
-            }
-
-            when (char) {
-                '\\' -> escaped = true
-                quoteChar -> return result.toString() // Found closing quote
-                else -> result.append(char)
-            }
-            i++
-        }
-
-        // No closing quote found, return what we have
-        return result.toString().ifEmpty { null }
-    }
 
     /**
      * Tests the connection to the model API.
@@ -733,29 +608,33 @@ class ModelClient(private val config: ModelConfig) {
 
         try {
             // Create a minimal test request
-            val testMessage = MessageDto(
-                role = "user",
-                content = JsonPrimitive("Hi")
-            )
+            val testMessage =
+                MessageDto(
+                    role = "user",
+                    content = JsonPrimitive("Hi"),
+                )
 
-            val requestBody = ChatCompletionRequest(
-                model = config.modelName,
-                messages = listOf(testMessage),
-                maxTokens = TEST_MAX_TOKENS,
-                temperature = 0f,
-                topP = 1f,
-                frequencyPenalty = 0f,
-                stream = false
-            )
+            val requestBody =
+                ChatCompletionRequest(
+                    model = config.modelName,
+                    messages = listOf(testMessage),
+                    maxTokens = TEST_MAX_TOKENS,
+                    temperature = 0f,
+                    topP = 1f,
+                    frequencyPenalty = 0f,
+                    stream = false,
+                )
 
             val requestJson = json.encodeToString(requestBody)
 
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer ${config.apiKey}")
-                .addHeader("Content-Type", "application/json")
-                .post(requestJson.toRequestBody("application/json".toMediaType()))
-                .build()
+            val request =
+                Request
+                    .Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer ${config.apiKey}")
+                    .addHeader("Content-Type", "application/json")
+                    .post(requestJson.toRequestBody("application/json".toMediaType()))
+                    .build()
 
             val response = client.newCall(request).execute()
             val latency = System.currentTimeMillis() - startTime
@@ -767,14 +646,17 @@ class ModelClient(private val config: ModelConfig) {
                         Logger.d(TAG, "Connection test successful, latency: ${latency}ms")
                         TestResult.Success(latency)
                     }
+
                     resp.code == HTTP_STATUS_UNAUTHORIZED -> {
                         Logger.logNetworkError("Connection test failed: Invalid API key (${resp.code})")
                         TestResult.AuthError("API 密钥无效")
                     }
+
                     resp.code == HTTP_STATUS_NOT_FOUND -> {
                         Logger.logNetworkError("Connection test failed: Model not found (${resp.code})")
                         TestResult.ModelNotFound("模型 '${config.modelName}' 不存在")
                     }
+
                     else -> {
                         val errorBody = resp.body?.string() ?: ""
                         Logger.logNetworkError("Connection test failed: ${resp.code} - $errorBody")
