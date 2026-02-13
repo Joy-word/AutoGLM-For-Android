@@ -36,6 +36,30 @@ data class SavedModelProfile(val id: String, val displayName: String, val config
 data class TaskTemplate(val id: String, val name: String, val description: String)
 
 /**
+ * Represents the action to perform after a task completes.
+ *
+ * @property value The string value stored in SharedPreferences
+ */
+enum class PostTaskAction(val value: String) {
+    /** Do nothing after task completes. */
+    NONE("none"),
+
+    /** Lock the device screen after task completes. */
+    LOCK_SCREEN("lock_screen");
+
+    companion object {
+        /**
+         * Converts a string value to a PostTaskAction.
+         *
+         * @param value The string value to convert
+         * @return The corresponding PostTaskAction, defaults to NONE if not found
+         */
+        fun fromValue(value: String): PostTaskAction =
+            entries.find { it.value == value } ?: NONE
+    }
+}
+
+/**
  * Manages application configuration and settings (Singleton).
  *
  * Handles persistence of model and agent configurations using SharedPreferences.
@@ -105,6 +129,9 @@ class SettingsManager private constructor(private val context: Context) {
 
         // Dev profiles import key
         private const val KEY_DEV_PROFILES_IMPORTED = "dev_profiles_imported"
+
+        // Post-task action key
+        private const val KEY_POST_TASK_ACTION = "post_task_action"
 
         // Voice settings keys
         private const val KEY_VOICE_CONTINUOUS_LISTENING = "voice_continuous_listening"
@@ -705,6 +732,29 @@ class SettingsManager private constructor(private val context: Context) {
     } catch (e: Exception) {
         Logger.e(TAG, "Failed to import dev profiles", e)
         -1
+    }
+
+    // ==================== Post-Task Action ====================
+
+    /**
+     * Gets the action to perform after a task completes.
+     *
+     * @return The post-task action setting
+     */
+    fun getPostTaskAction(): PostTaskAction {
+        val value = prefs.getString(KEY_POST_TASK_ACTION, PostTaskAction.NONE.value)
+            ?: PostTaskAction.NONE.value
+        return PostTaskAction.fromValue(value)
+    }
+
+    /**
+     * Sets the action to perform after a task completes.
+     *
+     * @param action The post-task action to set
+     */
+    fun setPostTaskAction(action: PostTaskAction) {
+        Logger.d(TAG, "Setting post-task action: ${action.value}")
+        prefs.edit().putString(KEY_POST_TASK_ACTION, action.value).apply()
     }
 
     // ==================== Voice Settings ====================

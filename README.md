@@ -34,6 +34,8 @@
 
 AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) 开源项目二次开发的 Android 原生应用。它将原本需要电脑 + ADB 连接的手机自动化方案，转变为一个独立运行在手机上的 App，让用户可以直接在手机上使用自然语言控制手机完成各种任务。
 
+本版本新增了**定时任务功能**，支持预设任务在指定时间自动执行，并提供多种重复模式（每天、工作日、每周等），让手机自动化更加智能和便捷。
+
 **核心特点：**
 
 - 🚀 **无需电脑**：直接在手机上运行，无需 ADB 连接
@@ -42,6 +44,7 @@ AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-Aut
 - 🪟 **悬浮窗交互**：悬浮窗实时显示任务执行进度
 - 📱 **原生体验**：Material Design 设计，流畅的原生 Android 体验
 - 🔌 **多模型支持**：兼容任何支持 OpenAI 格式和图片理解的模型 API
+- ⏰ **定时任务**：支持定时执行任务，可设置重复模式，自动亮屏执行
 
 ## 🏗️ 架构对比
 
@@ -63,6 +66,7 @@ AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-Aut
 - ✅ **多种操作**：点击、滑动、长按、双击、输入文本、启动应用等
 - ✅ **任务控制**：暂停、继续、取消任务执行
 - ✅ **历史记录**：保存任务执行历史，支持查看详情和截图
+- ✅ **定时任务**：预设任务在指定时间自动执行，支持一次性和重复任务
 
 ### 用户界面
 
@@ -75,6 +79,7 @@ AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-Aut
 
 - ✅ **多模型配置**：支持保存多个模型配置，快速切换
 - ✅ **任务模板**：保存常用任务，一键执行
+- ✅ **定时任务管理**：查看、编辑、启用/禁用定时任务，支持多种重复模式
 - ✅ **自定义 Prompt**：支持自定义系统提示词
 - ✅ **快捷磁贴**：通知栏快捷磁贴，快速打开悬浮窗
 - ✅ **日志导出**：支持导出调试日志，自动脱敏敏感信息
@@ -229,6 +234,33 @@ Shizuku 是本应用的核心依赖，用于执行屏幕点击、滑动等操作
 2. 查看所有执行过的任务列表
 3. 点击任务可查看详细步骤和截图
 
+**定时任务**：
+
+AutoGLM 支持定时任务功能，可预设任务在指定时间自动执行：
+
+1. 在主界面或悬浮窗输入任务描述
+2. 点击「定时」按钮打开定时设置对话框
+3. 选择执行时间方式：
+   - **指定时间**：选择具体的日期和时间
+   - **延迟执行**：设置延迟的小时和分钟数
+4. 选择重复类型：
+   - **仅一次**：执行一次后自动禁用
+   - **每天**：每天在相同时间执行
+   - **工作日**：周一至周五执行
+   - **每周**：每周在同一天执行
+5. 点击「确认」保存定时任务
+6. 点击主界面右上角的 🕐 图标可查看和管理所有定时任务
+7. 到达设定时间后，应用会自动唤醒屏幕并执行任务
+
+**定时任务注意事项**：
+
+- ⚠️ **锁屏限制**：如果手机设置了锁屏密码，息屏状态下定时任务可能无法触发，建议在执行前保持手机解锁状态
+- 🔋 **电池优化**：请在系统设置中关闭 AutoGLM 的电池优化，避免后台被杀导致定时任务无法执行
+- ⏰ **精确定时**：应用使用 AlarmManager 的精确定时功能，即使在 Doze 模式下也能准时触发
+- 🔁 **重复任务**：对于重复类型的任务，执行完成后会自动计算下次执行时间并重新调度
+- 📱 **开机自启**：设备重启后，应用会自动恢复所有已启用的定时任务
+
+
 ### 任务示例大全
 
 **社交通讯**
@@ -264,6 +296,15 @@ Shizuku 是本应用的核心依赖，用于执行屏幕点击、滑动等操作
 ```
 打开抖音，刷5个视频
 打开B站，搜索编程教程
+```
+
+**定时任务场景**
+
+```
+每天早上7点：打开新闻客户端，查看今日头条
+工作日早上8:30：打开钉钉，自动打卡
+每天晚上22点：打开喜马拉雅，播放睡前故事
+每周一早上9点：打开备忘录，查看本周待办事项
 ```
 
 ### 高级功能
@@ -317,6 +358,11 @@ Shizuku 是本应用的核心依赖，用于执行屏幕点击、滑动等操作
 3. **善用暂停功能**：在关键步骤前暂停，确认后再继续
 4. **保存常用模板**：将重复性任务保存为模板提高效率
 5. **定期检查 Shizuku**：确保 Shizuku 服务持续运行
+6. **合理使用定时任务**：
+   - 设置定时任务前先手动测试任务是否能正常执行
+   - 关闭电池优化以确保定时任务能准时触发
+   - 对于需要交互的任务，建议在执行前保持手机解锁状态
+   - 使用重复任务时，注意任务执行时间，避免与其他活动冲突
 
 ## 🛠️ 开发教程
 
@@ -377,9 +423,19 @@ app/src/main/java/com/kevinluo/autoglm/
 │   └── ModelClient.kt      # API 客户端
 ├── screenshot/             # 截图模块
 │   └── ScreenshotService.kt # 截图服务
+├── schedule/               # 定时任务模块
+│   ├── ScheduledTask.kt    # 定时任务数据类
+│   ├── ScheduledTaskManager.kt  # 定时任务管理器
+│   ├── ScheduledTaskScheduler.kt # AlarmManager 调度器
+│   ├── ScheduledTaskReceiver.kt  # 定时任务广播接收器
+│   ├── ScheduleTaskDialog.kt     # 创建定时任务对话框
+│   ├── ScheduledTaskListDialog.kt # 定时任务列表对话框
+│   └── BootReceiver.kt     # 开机自启接收器
 ├── settings/               # 设置模块
 │   ├── SettingsManager.kt  # 设置管理
-│   └── SettingsActivity.kt # 设置界面
+│   └── SettingsFragment.kt # 设置界面
+├── task/                   # 任务执行模块
+│   └── TaskExecutionManager.kt  # 任务执行管理器
 ├── ui/                     # UI 模块
 │   ├── FloatingWindowService.kt  # 悬浮窗服务
 │   ├── FloatingWindowTileService.kt  # 快捷磁贴服务
@@ -390,7 +446,8 @@ app/src/main/java/com/kevinluo/autoglm/
 │   ├── ErrorHandler.kt     # 错误处理
 │   ├── HumanizedSwipeGenerator.kt # 人性化滑动
 │   ├── LogFileManager.kt   # 日志文件管理与导出
-│   └── Logger.kt           # 日志工具
+│   ├── Logger.kt           # 日志工具
+│   └── ScreenKeepAliveManager.kt # 屏幕唤醒管理器
 ├── ComponentManager.kt     # 组件管理器
 ├── MainActivity.kt         # 主界面
 └── UserService.kt          # Shizuku 用户服务
@@ -427,6 +484,32 @@ app/src/main/java/com/kevinluo/autoglm/
 - 截取屏幕并压缩为 WebP
 - 自动隐藏悬浮窗避免干扰
 - 支持敏感页面检测
+
+**ScheduledTaskManager (schedule/ScheduledTaskManager.kt)**
+
+- 管理定时任务的创建、读取、更新和删除
+- 使用 SharedPreferences 持久化存储任务数据
+- 通过 StateFlow 向 UI 层暴露任务列表变化
+- 自动协调 AlarmManager 调度和屏幕唤醒管理
+
+**ScheduledTaskScheduler (schedule/ScheduledTaskScheduler.kt)**
+
+- 使用 AlarmManager 调度定时任务
+- 支持精确定时，即使在 Doze 模式下也能触发
+- 计算重复任务的下次执行时间（每天/工作日/每周）
+- 管理任务的取消和重新调度
+
+**ScreenKeepAliveManager (util/ScreenKeepAliveManager.kt)**
+
+- 管理屏幕唤醒锁，确保任务执行期间屏幕保持点亮
+- 为定时任务提供部分唤醒锁，保证后台定时触发
+- 根据定时任务状态自动获取和释放唤醒锁
+
+**TaskExecutionManager (task/TaskExecutionManager.kt)**
+
+- 统一管理任务执行，协调 PhoneAgent 和各种服务
+- 检查任务启动条件（Shizuku 状态、悬浮窗权限等）
+- 处理定时任务和手动任务的统一调度
 
 ### 构建和调试
 
@@ -518,6 +601,42 @@ A:
 2. 尝试切换其他模型服务
 3. 在设置中调整超时时间
 
+### 定时任务相关
+
+**Q: 定时任务没有按时触发？**
+
+A:
+
+1. 检查系统设置中是否关闭了 AutoGLM 的电池优化
+2. 确保应用没有被系统后台清理
+3. 部分手机需要在设置中允许应用「后台运行」和「自启动」
+4. 查看任务列表确认任务是否处于启用状态
+
+**Q: 定时任务触发后无法执行？**
+
+A:
+
+1. 如果手机设置了锁屏密码，需要在任务执行前保持解锁状态
+2. 确认 Shizuku 服务正在运行（重启后 Shizuku 需要重新激活）
+3. 检查是否有其他任务正在执行，定时任务不会打断正在运行的任务
+
+**Q: 设备重启后定时任务失效？**
+
+A: 应用已设置开机自启动来恢复定时任务，但部分手机系统需要手动授权：
+
+1. 进入系统设置 → 应用管理 → AutoGLM
+2. 开启「自启动」或「开机启动」权限
+3. 关闭电池优化
+4. 如果 Shizuku 使用无线调试方式，重启后需要重新配对激活
+
+**Q: 重复任务只执行了一次？**
+
+A:
+
+1. 检查任务是否被误设置为「仅一次」模式
+2. 查看任务列表确认任务仍处于启用状态
+3. 如果执行失败，重复任务会自动调度到下次执行时间
+
 ## 📄 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源。
@@ -528,14 +647,14 @@ A:
 
 ## 🙏 致谢
 
+- [AutoGLM-For-Android](https://github.com/Luokavin/AutoGLM-For-Android) Luokavin 大佬开源项目
 - [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) - 原始开源项目
 - [Shizuku](https://github.com/RikkaApps/Shizuku) - 系统权限框架
 - [智谱 AI](https://www.zhipuai.cn/) - AutoGLM 模型提供方
 
 ## 📞 联系方式
 
-- Issues: [GitHub Issues](https://github.com/your-repo/issues)
-- Email: luokavin@foxmail.com
+- Email: wxrachel@outlook.com
 
 ---
 

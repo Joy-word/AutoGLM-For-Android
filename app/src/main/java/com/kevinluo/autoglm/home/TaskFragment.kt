@@ -22,6 +22,9 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.kevinluo.autoglm.R
+import com.kevinluo.autoglm.schedule.ScheduleTaskDialog
+import com.kevinluo.autoglm.schedule.ScheduledTaskListDialog
+import com.kevinluo.autoglm.schedule.ScheduledTaskManager
 import com.kevinluo.autoglm.settings.SettingsManager
 import com.kevinluo.autoglm.settings.TaskTemplate
 import com.kevinluo.autoglm.ui.FloatingWindowStateManager
@@ -56,9 +59,13 @@ class TaskFragment : Fragment() {
     private lateinit var btnVoiceInput: ImageButton
     private lateinit var btnSelectTemplate: ImageButton
     private lateinit var btnStartTask: MaterialButton
+    private lateinit var btnScheduleTask: MaterialButton
 
     // Floating Window Button
     private lateinit var btnFloatingWindow: ImageButton
+    
+    // Scheduled Tasks Button
+    private lateinit var btnScheduledTasks: ImageButton
 
     // Permission request launcher
     private val audioPermissionLauncher =
@@ -107,9 +114,13 @@ class TaskFragment : Fragment() {
         btnVoiceInput = view.findViewById(R.id.btnVoiceInput)
         btnSelectTemplate = view.findViewById(R.id.btnSelectTemplate)
         btnStartTask = view.findViewById(R.id.btnStartTask)
+        btnScheduleTask = view.findViewById(R.id.btnScheduleTask)
 
         // Floating Window Button
         btnFloatingWindow = view.findViewById(R.id.btnFloatingWindow)
+        
+        // Scheduled Tasks Button
+        btnScheduledTasks = view.findViewById(R.id.btnScheduledTasks)
     }
 
     /**
@@ -136,9 +147,19 @@ class TaskFragment : Fragment() {
             startTask()
         }
 
+        // Schedule task button
+        btnScheduleTask.setOnClickListener {
+            scheduleTask()
+        }
+
         // Floating window button
         btnFloatingWindow.setOnClickListener {
             toggleFloatingWindow()
+        }
+        
+        // Scheduled tasks management button
+        btnScheduledTasks.setOnClickListener {
+            showScheduledTasksList()
         }
     }
 
@@ -369,6 +390,44 @@ class TaskFragment : Fragment() {
         if (!wasEnabled) {
             activity?.moveTaskToBack(true)
         }
+    }
+
+    /**
+     * Shows the schedule task dialog to create a new scheduled task.
+     */
+    private fun scheduleTask() {
+        val taskDescription = taskInput.text?.toString()?.trim()
+
+        if (taskDescription.isNullOrBlank()) {
+            Toast.makeText(requireContext(), R.string.schedule_task_input_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dialog = ScheduleTaskDialog(
+            context = requireContext(),
+            taskDescription = taskDescription,
+            onScheduled = { task ->
+                val taskManager = ScheduledTaskManager.getInstance(requireContext())
+                taskManager.saveTask(task)
+                Toast.makeText(requireContext(), R.string.schedule_saved, Toast.LENGTH_SHORT).show()
+                Logger.i(TAG, "Scheduled task created: ${task.id}")
+            }
+        )
+        dialog.show()
+    }
+
+    /**
+     * Shows the scheduled tasks list dialog.
+     */
+    private fun showScheduledTasksList() {
+        val dialog = ScheduledTaskListDialog(
+            context = requireContext(),
+            lifecycleOwner = viewLifecycleOwner,
+            onNewTask = {
+                scheduleTask()
+            }
+        )
+        dialog.show()
     }
 
     companion object {

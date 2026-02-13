@@ -5,9 +5,12 @@ import com.kevinluo.autoglm.ComponentManager
 import com.kevinluo.autoglm.action.AgentAction
 import com.kevinluo.autoglm.agent.AgentState
 import com.kevinluo.autoglm.agent.PhoneAgentListener
+import com.kevinluo.autoglm.settings.PostTaskAction
+import com.kevinluo.autoglm.settings.SettingsManager
 import com.kevinluo.autoglm.ui.FloatingWindowStateManager
 import com.kevinluo.autoglm.ui.TaskStatus
 import com.kevinluo.autoglm.util.Logger
+import com.kevinluo.autoglm.util.ScreenKeepAliveManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +32,8 @@ import kotlinx.coroutines.launch
 object TaskExecutionManager : PhoneAgentListener {
     private const val TAG = "TaskExecutionManager"
     private const val PHONE_AGENT_POLL_INTERVAL_MS = 500L
+    private const val POST_TASK_ACTION_DELAY_MS = 2000L
+    private const val KEYCODE_POWER = 26
 
     private var applicationContext: Context? = null
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -64,6 +69,7 @@ object TaskExecutionManager : PhoneAgentListener {
         applicationContext = context.applicationContext
         Logger.i(TAG, "TaskExecutionManager initialized")
         observePhoneAgentAvailability()
+        observeTaskStateForScreenKeepAlive()
     }
 
     /**
@@ -99,6 +105,82 @@ object TaskExecutionManager : PhoneAgentListener {
                 }
 
                 kotlinx.coroutines.delay(PHONE_AGENT_POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    /**
+     * Observes task state changes to manage screen keep-alive behavior and post-task actions.
+     *
+     * When task starts running: keeps screen bright
+     * When task completes/fails: allows screen to turn off, then executes post-task action
+     */
+    private fun observeTaskStateForScreenKeepAlive() {
+        val ctx = applicationContext ?: return
+        
+        managerScope.launch {
+            taskState.collect { state ->
+                when (state.status) {
+                    TaskStatus.RUNNING -> {
+                        // Task started - keep screen bright
+                        ScreenKeepAliveManager.onTaskStarted(ctx)
+                    }
+                    TaskStatus.COMPLETED, TaskStatus.FAILED -> {
+                        // Task ended - allow screen to turn off
+                        ScreenKeepAliveManager.onTaskCompleted()
+                        // Execute configured post-task action (e.g., screen off, lock screen)
+                        executePostTaskAction(ctx)
+                    }
+                    else -> {
+                        // IDLE, PAUSED - no action needed
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Executes the configured post-task action after a task completes or fails.
+     *
+     * Reads the user's preference from [SettingsManager] and performs the corresponding action:
+     * - [PostTaskAction.NONE]: Do nothing
+     * - [PostTaskAction.LOCK_SCREEN]: Lock the screen (KEYCODE_POWER = 26)
+     *
+     * A short delay is added before executing the action to allow the user to briefly
+     * see the task completion status.
+     *
+     * @param context Application context for accessing SettingsManager
+     */
+    private fun executePostTaskAction(context: Context) {
+        val settingsManager = SettingsManager.getInstance(context)
+        val action = settingsManager.getPostTaskAction()
+
+        if (action == PostTaskAction.NONE) return
+
+        val componentManager = getComponentManager() ?: run {
+            Logger.w(TAG, "Cannot execute post-task action: ComponentManager not available")
+            return
+        }
+        val deviceExecutor = componentManager.deviceExecutor ?: run {
+            Logger.w(TAG, "Cannot execute post-task action: DeviceExecutor not available")
+            return
+        }
+
+        managerScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // Delay to let the user briefly see the task result
+            kotlinx.coroutines.delay(POST_TASK_ACTION_DELAY_MS)
+
+            try {
+                when (action) {
+                    PostTaskAction.LOCK_SCREEN -> {
+                        // KEYCODE_POWER (26) - locks the screen
+                        deviceExecutor.pressKey(KEYCODE_POWER)
+                        Logger.i(TAG, "Post-task action executed: lock screen")
+                    }
+                    PostTaskAction.NONE -> { /* should not reach here */ }
+                }
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to execute post-task action: ${e.message}", e)
             }
         }
     }

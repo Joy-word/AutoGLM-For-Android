@@ -133,6 +133,11 @@
     <string name="settings_test_timeout">连接超时: %s</string>
     <string name="settings_test_invalid_config">请先填写完整的配置信息</string>
     
+    <!-- Post-Task Action -->
+    <string name="settings_post_task_action">任务完成后操作</string>
+    <string name="settings_post_task_action_none">不执行任何操作</string>
+    <string name="settings_post_task_action_lock_screen">锁屏</string>
+    
     <!-- Task Templates -->
     <string name="settings_task_templates">任务模板</string>
     <string name="settings_task_templates_description">保存常用任务，快速填入</string>
@@ -325,4 +330,38 @@
     <string name="voice_downloading">正在下载...</string>
     <string name="voice_download_progress">下载进度: %1$d MB / %2$d MB</string>
     <string name="voice_download_confirm">下载确认</string>
+
+    <!-- Scheduled Tasks -->
+    <string name="schedule_task">定时</string>
+    <string name="scheduled_tasks">定时任务</string>
+    <string name="schedule_task_title">设置定时任务</string>
+    <string name="schedule_time_mode">执行方式</string>
+    <string name="schedule_time_specific">指定时间</string>
+    <string name="schedule_time_delay">延迟执行</string>
+    <string name="schedule_select_date">选择日期</string>
+    <string name="schedule_select_time">选择时间</string>
+    <string name="schedule_delay_hours">小时</string>
+    <string name="schedule_delay_minutes">分钟</string>
+    <string name="schedule_delay_after">后</string>
+    <string name="schedule_repeat">重复</string>
+    <string name="schedule_repeat_once">单次</string>
+    <string name="schedule_repeat_daily">每天</string>
+    <string name="schedule_repeat_weekdays">工作日</string>
+    <string name="schedule_repeat_weekly">每周</string>
+    <string name="schedule_saved">定时任务已设置</string>
+    <string name="schedule_deleted">定时任务已删除</string>
+    <string name="schedule_enabled">定时任务已启用</string>
+    <string name="schedule_disabled">定时任务已暂停</string>
+    <string name="schedule_empty">暂无定时任务</string>
+    <string name="schedule_new">新建定时任务</string>
+    <string name="schedule_time_past">请选择未来的时间</string>
+    <string name="schedule_skipped_task_running">定时任务已跳过:有其他任务正在执行</string>
+    <string name="schedule_task_started">定时任务开始执行</string>
+    <string name="schedule_delete_confirm">确定要删除此定时任务吗？</string>
+    <string name="schedule_task_input_empty">请先输入任务描述</string>
+    <string name="schedule_time_format">%1$s %2$s</string>
+    <string name="schedule_today">今天</string>
+    <string name="schedule_tomorrow">明天</string>
+    <string name="schedule_date_format">MM月dd日</string>
+    <string name="schedule_time_format_hm">HH:mm</string>
 </resources>

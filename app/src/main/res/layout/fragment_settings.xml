@@ -470,6 +470,42 @@
                                 android:textSize="14sp" />
                         </RadioGroup>
 
+                        <!-- Post-Task Action -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="20dp"
+                            android:text="@string/settings_post_task_action"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <RadioGroup
+                            android:id="@+id/postTaskActionRadioGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:orientation="horizontal">
+
+                            <RadioButton
+                                android:id="@+id/postTaskActionNone"
+                                style="@style/Widget.App.RadioButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="16dp"
+                                android:text="@string/settings_post_task_action_none"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp" />
+
+                            <RadioButton
+                                android:id="@+id/postTaskActionLockScreen"
+                                style="@style/Widget.App.RadioButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_post_task_action_lock_screen"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp" />
+                        </RadioGroup>
+
                     </LinearLayout>
 
                 </com.google.android.material.card.MaterialCardView>

@@ -101,6 +101,9 @@ class SettingsFragment : Fragment() {
     private lateinit var languageRadioGroup: RadioGroup
     private lateinit var languageChinese: RadioButton
     private lateinit var languageEnglish: RadioButton
+    private lateinit var postTaskActionRadioGroup: RadioGroup
+    private lateinit var postTaskActionNone: RadioButton
+    private lateinit var postTaskActionLockScreen: RadioButton
 
     // Buttons
     private lateinit var saveButton: ImageButton
@@ -233,6 +236,9 @@ class SettingsFragment : Fragment() {
         languageRadioGroup = view.findViewById(R.id.languageRadioGroup)
         languageChinese = view.findViewById(R.id.languageChinese)
         languageEnglish = view.findViewById(R.id.languageEnglish)
+        postTaskActionRadioGroup = view.findViewById(R.id.postTaskActionRadioGroup)
+        postTaskActionNone = view.findViewById(R.id.postTaskActionNone)
+        postTaskActionLockScreen = view.findViewById(R.id.postTaskActionLockScreen)
 
         // Buttons
         saveButton = view.findViewById(R.id.saveButton)
@@ -326,6 +332,12 @@ class SettingsFragment : Fragment() {
         when (agentConfig.language) {
             "en" -> languageEnglish.isChecked = true
             else -> languageChinese.isChecked = true
+        }
+
+        // Load post-task action setting
+        when (settingsManager.getPostTaskAction()) {
+            PostTaskAction.NONE -> postTaskActionNone.isChecked = true
+            PostTaskAction.LOCK_SCREEN -> postTaskActionLockScreen.isChecked = true
         }
 
         clearErrors()
@@ -849,6 +861,13 @@ class SettingsFragment : Fragment() {
                 screenshotDelayMs = screenshotDelayMs,
             )
         settingsManager.saveAgentConfig(agentConfig)
+
+        // Save post-task action
+        val postTaskAction = when (postTaskActionRadioGroup.checkedRadioButtonId) {
+            R.id.postTaskActionLockScreen -> PostTaskAction.LOCK_SCREEN
+            else -> PostTaskAction.NONE
+        }
+        settingsManager.setPostTaskAction(postTaskAction)
 
         saveWakeWords()
 

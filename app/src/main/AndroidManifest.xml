@@ -17,6 +17,8 @@
 
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <!-- Allow querying all apps with launcher intent -->
@@ -165,7 +167,20 @@
             android:name=".voice.ContinuousListeningService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
-        
+
+        <!-- Scheduled Task Receiver -->
+        <receiver
+            android:name=".schedule.ScheduledTaskReceiver"
+            android:exported="false" />
+
+        <!-- Boot Receiver for restoring scheduled tasks -->
+        <receiver
+            android:name=".schedule.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

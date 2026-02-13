@@ -4,12 +4,14 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import com.kevinluo.autoglm.config.SystemPrompts
+import com.kevinluo.autoglm.schedule.ScheduledTaskManager
 import com.kevinluo.autoglm.settings.SettingsManager
 import com.kevinluo.autoglm.task.TaskExecutionManager
 import com.kevinluo.autoglm.ui.FloatingWindowStateManager
 import com.kevinluo.autoglm.util.KeepAliveManager
 import com.kevinluo.autoglm.util.LogFileManager
 import com.kevinluo.autoglm.util.Logger
+import com.kevinluo.autoglm.util.ScreenKeepAliveManager
 
 /**
  * Application class that manages app-wide lifecycle events.
@@ -45,8 +47,14 @@ class AutoGLMApplication : Application() {
         // 初始化保活状态
         KeepAliveManager.syncFixState(this)
 
+        // Initialize ScreenKeepAliveManager
+        ScreenKeepAliveManager.initialize(this)
+
         // Initialize TaskExecutionManager (after ComponentManager is available)
         TaskExecutionManager.initialize(this)
+
+        // Initialize ScheduledTaskManager and restore scheduled tasks
+        initializeScheduledTasks()
 
         registerActivityLifecycleCallbacks(
             object : ActivityLifecycleCallbacks {
@@ -94,6 +102,12 @@ class AutoGLMApplication : Application() {
         )
     }
 
+    override fun onTerminate() {
+        super.onTerminate()
+        // Release all wake locks when app terminates
+        com.kevinluo.autoglm.util.ScreenKeepAliveManager.releaseAll()
+    }
+
     /**
      * Loads custom system prompts from settings if they exist.
      *
@@ -139,6 +153,22 @@ class AutoGLMApplication : Application() {
             Logger.d(TAG, "dev_profiles.json not found in assets (expected for release builds)")
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to import dev profiles", e)
+        }
+    }
+
+    /**
+     * Initializes the ScheduledTaskManager and restores all scheduled tasks.
+     *
+     * This ensures that scheduled tasks are properly registered with AlarmManager
+     * when the app starts.
+     */
+    private fun initializeScheduledTasks() {
+        try {
+            val taskManager = ScheduledTaskManager.getInstance(this)
+            taskManager.rescheduleAllEnabledTasks()
+            Logger.i(TAG, "ScheduledTaskManager initialized and tasks restored")
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to initialize scheduled tasks", e)
         }
     }
 
