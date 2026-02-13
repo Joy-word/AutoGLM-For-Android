@@ -44,7 +44,7 @@ AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-Aut
 - 🪟 **悬浮窗交互**：悬浮窗实时显示任务执行进度
 - 📱 **原生体验**：Material Design 设计，流畅的原生 Android 体验
 - 🔌 **多模型支持**：兼容任何支持 OpenAI 格式和图片理解的模型 API
-- ⏰ **定时任务**：支持定时执行任务，可设置重复模式，自动亮屏执行
+- ⏰ **【NEW!!!】定时任务**：支持定时执行任务，可设置重复模式，自动亮屏执行
 
 ## 🏗️ 架构对比
 
@@ -640,10 +640,6 @@ A:
 ## 📄 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源。
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Luokavin/AutoGLM-For-Android&type=Date)](https://star-history.com/#Luokavin/AutoGLM-For-Android&Date)
 
 ## 🙏 致谢
 
