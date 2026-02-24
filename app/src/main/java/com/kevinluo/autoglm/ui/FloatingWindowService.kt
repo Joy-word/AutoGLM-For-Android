@@ -645,6 +645,7 @@ class FloatingWindowService :
             val pauseBtn = view.findViewById<MaterialButton>(R.id.btn_pause)
             val resumeBtn = view.findViewById<MaterialButton>(R.id.btn_resume)
             val newTaskBtn = view.findViewById<MaterialButton>(R.id.btn_new_task)
+            val resultView = view.findViewById<TextView>(R.id.tv_result)
 
             Logger.d(TAG, "updateUIForStatus: inputArea=$inputArea, stepsRecycler=$stepsRecycler, stopBtn=$stopBtn")
 
@@ -656,6 +657,7 @@ class FloatingWindowService :
                     stepsRecycler?.visibility = View.GONE
                     controlButtonsContainer?.visibility = View.GONE
                     newTaskBtn?.visibility = View.GONE
+                    resultView?.visibility = View.GONE
                 }
 
                 TaskStatus.RUNNING, TaskStatus.WAITING_CONFIRMATION, TaskStatus.WAITING_TAKEOVER -> {
@@ -668,6 +670,14 @@ class FloatingWindowService :
                     resumeBtn?.visibility = View.GONE
                     stopBtn?.visibility = View.VISIBLE
                     newTaskBtn?.visibility = View.GONE
+                    // Clear previous task result and reset steps
+                    resultView?.visibility = View.GONE
+                    resultView?.text = ""
+                    stepsList.clear()
+                    stepsAdapter?.notifyDataSetChanged()
+                    currentStepNumber = 0
+                    view.findViewById<TextView>(R.id.tv_step_counter)?.text =
+                        getString(R.string.step_counter_default)
                 }
 
                 TaskStatus.PAUSED -> {

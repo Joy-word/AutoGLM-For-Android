@@ -362,15 +362,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         Logger.d(TAG, "Starting task: ${taskDescription.take(50)}...")
         appendLog("Starting task: $taskDescription")
 
-        // Notify state manager that task is starting
-        FloatingWindowStateManager.onTaskStarted(getApplication())
-
         viewModelScope.launch {
             // Minimize app
             _events.emit(MainUiEvent.MinimizeApp)
         }
 
         // Start task via TaskExecutionManager
+        // Note: FloatingWindowStateManager.onTaskStarted() is now called automatically
+        // by TaskExecutionManager when task state changes to RUNNING
         TaskExecutionManager.startTask(taskDescription)
     }
 
@@ -382,8 +381,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         Logger.d(TAG, "Cancelling task")
         TaskExecutionManager.cancelTask()
         appendLog("Task cancelled by user")
-        // Notify state manager that task completed
-        FloatingWindowStateManager.onTaskCompleted()
+        // Note: FloatingWindowStateManager.onTaskCompleted() is called automatically
+        // by TaskExecutionManager when task state changes to FAILED
     }
 
     /**

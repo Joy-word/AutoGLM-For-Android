@@ -4,9 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.kevinluo.autoglm.task.TaskExecutionManager
-import com.kevinluo.autoglm.ui.FloatingWindowStateManager
 import com.kevinluo.autoglm.util.Logger
-import com.kevinluo.autoglm.util.ScreenKeepAliveManager
 
 /**
  * BroadcastReceiver that handles execution of scheduled tasks when AlarmManager triggers.
@@ -69,14 +67,9 @@ class ScheduledTaskReceiver : BroadcastReceiver() {
 
         Logger.i(TAG, "Executing scheduled task: ${task.taskDescription.take(50)}...")
 
-        // Notify FloatingWindowStateManager that task is starting
-        // This will show the floating window during scheduled task execution
-        FloatingWindowStateManager.onTaskStarted(context)
-
-        // Ensure screen stays on during scheduled task execution
-        ScreenKeepAliveManager.onTaskStarted(context)
-
         // Execute the task
+        // Note: Both FloatingWindowStateManager.onTaskStarted() and ScreenKeepAliveManager.onTaskStarted()
+        // are now called automatically by TaskExecutionManager when task state changes to RUNNING
         val success = TaskExecutionManager.startTask(task.taskDescription)
         
         if (success) {

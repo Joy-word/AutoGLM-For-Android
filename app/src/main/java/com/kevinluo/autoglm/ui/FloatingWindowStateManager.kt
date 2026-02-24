@@ -78,6 +78,10 @@ object FloatingWindowStateManager {
             } else {
                 FloatingWindowState.HIDDEN
             }
+            // 如果状态变为HIDDEN,显式隐藏窗口
+        if (_state.value == FloatingWindowState.HIDDEN) {
+            hideWindow()
+        }
     }
 
     /**

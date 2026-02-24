@@ -110,30 +110,36 @@ object TaskExecutionManager : PhoneAgentListener {
     }
 
     /**
-     * Observes task state changes to manage screen keep-alive behavior and post-task actions.
+     * Observes task state changes to manage screen keep-alive behavior, floating window, and post-task actions.
      *
-     * When task starts running: keeps screen bright
-     * When task completes/fails: allows screen to turn off, then executes post-task action
+     * When task starts running: keeps screen bright and shows floating window
+     * When task completes/fails: allows screen to turn off, hides floating window, then executes post-task action
      */
     private fun observeTaskStateForScreenKeepAlive() {
         val ctx = applicationContext ?: return
         
         managerScope.launch {
             taskState.collect { state ->
-                when (state.status) {
-                    TaskStatus.RUNNING -> {
-                        // Task started - keep screen bright
-                        ScreenKeepAliveManager.onTaskStarted(ctx)
+                try {
+                    when (state.status) {
+                        TaskStatus.RUNNING -> {
+                            // Task started - keep screen bright and show floating window
+                            ScreenKeepAliveManager.onTaskStarted(ctx)
+                            FloatingWindowStateManager.onTaskStarted(ctx)
+                        }
+                        TaskStatus.COMPLETED, TaskStatus.FAILED -> {
+                            // Task ended - allow screen to turn off and hide floating window
+                            ScreenKeepAliveManager.onTaskCompleted()
+                            FloatingWindowStateManager.onTaskCompleted()
+                            // Execute configured post-task action (e.g., screen off, lock screen)
+                            executePostTaskAction(ctx)
+                        }
+                        else -> {
+                            // IDLE, PAUSED - no action needed
+                        }
                     }
-                    TaskStatus.COMPLETED, TaskStatus.FAILED -> {
-                        // Task ended - allow screen to turn off
-                        ScreenKeepAliveManager.onTaskCompleted()
-                        // Execute configured post-task action (e.g., screen off, lock screen)
-                        executePostTaskAction(ctx)
-                    }
-                    else -> {
-                        // IDLE, PAUSED - no action needed
-                    }
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Error handling task state change (${state.status}): ${e.message}", e)
                 }
             }
         }
@@ -173,6 +179,9 @@ object TaskExecutionManager : PhoneAgentListener {
             try {
                 when (action) {
                     PostTaskAction.LOCK_SCREEN -> {
+                        // Small delay to ensure window closes before screen locks
+                        kotlinx.coroutines.delay(300L)
+                        
                         // KEYCODE_POWER (26) - locks the screen
                         deviceExecutor.pressKey(KEYCODE_POWER)
                         Logger.i(TAG, "Post-task action executed: lock screen")
@@ -231,18 +240,20 @@ object TaskExecutionManager : PhoneAgentListener {
 
                 if (result.success) {
                     Logger.i(TAG, "Task completed successfully: ${result.message}")
-                    _taskState.value =
-                        _taskState.value.copy(
-                            status = TaskStatus.COMPLETED,
-                            resultMessage = result.message,
-                        )
+                    onTaskCompleted(result.message)
+                    // _taskState.value =
+                    //     _taskState.value.copy(
+                    //         status = TaskStatus.COMPLETED,
+                    //         resultMessage = result.message,
+                    //     )
                 } else {
                     Logger.w(TAG, "Task failed: ${result.message}")
-                    _taskState.value =
-                        _taskState.value.copy(
-                            status = TaskStatus.FAILED,
-                            resultMessage = result.message,
-                        )
+                    onTaskFailed(result.message)
+                    // _taskState.value =
+                    //     _taskState.value.copy(
+                    //         status = TaskStatus.FAILED,
+                    //         resultMessage = result.message,
+                    //     )
                 }
             } catch (e: Exception) {
                 Logger.e(TAG, "Task error: ${e.message}", e)
@@ -467,13 +478,25 @@ object TaskExecutionManager : PhoneAgentListener {
      */
     override fun onTaskCompleted(message: String) {
         Logger.i(TAG, "Task completed: $message")
+        
+        // If lock screen is configured, mark floating window as user-disabled
+        // so that onTaskCompleted() in the observer will transition to HIDDEN
+        val ctx = applicationContext
+        if (ctx != null) {
+            val settingsManager = SettingsManager.getInstance(ctx)
+            if (settingsManager.getPostTaskAction() == PostTaskAction.LOCK_SCREEN) {
+                Logger.i(TAG, "Lock screen configured, disabling floating window")
+                FloatingWindowStateManager.disableByUser()
+            }
+        }
+        
         _taskState.value =
             _taskState.value.copy(
                 status = TaskStatus.COMPLETED,
                 resultMessage = message,
             )
-        // Notify FloatingWindowStateManager that task has ended
-        FloatingWindowStateManager.onTaskCompleted()
+        // Note: FloatingWindowStateManager.onTaskCompleted() is called automatically
+        // by the observer in observeTaskStateForScreenKeepAlive()
     }
 
     /**
@@ -483,13 +506,25 @@ object TaskExecutionManager : PhoneAgentListener {
      */
     override fun onTaskFailed(error: String) {
         Logger.e(TAG, "Task failed: $error")
+        
+        // If lock screen is configured, mark floating window as user-disabled
+        // so that onTaskCompleted() in the observer will transition to HIDDEN
+        val ctx = applicationContext
+        if (ctx != null) {
+            val settingsManager = SettingsManager.getInstance(ctx)
+            if (settingsManager.getPostTaskAction() == PostTaskAction.LOCK_SCREEN) {
+                Logger.i(TAG, "Lock screen configured, disabling floating window")
+                FloatingWindowStateManager.disableByUser()
+            }
+        }
+        
         _taskState.value =
             _taskState.value.copy(
                 status = TaskStatus.FAILED,
                 resultMessage = error,
             )
-        // Notify FloatingWindowStateManager that task has ended
-        FloatingWindowStateManager.onTaskCompleted()
+        // Note: FloatingWindowStateManager.onTaskCompleted() is called automatically
+        // by the observer in observeTaskStateForScreenKeepAlive()
     }
 
     /**
