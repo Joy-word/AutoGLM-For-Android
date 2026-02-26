@@ -138,6 +138,9 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_VOICE_WAKE_WORDS = "voice_wake_words"
         private const val KEY_VOICE_WAKE_SENSITIVITY = "voice_wake_sensitivity"
 
+        // Notification trigger rules key
+        private const val KEY_NOTIFICATION_TRIGGER_RULES = "notification_trigger_rules"
+
         // Default values
         private val DEFAULT_MODEL_CONFIG = ModelConfig()
         private val DEFAULT_AGENT_CONFIG = AgentConfig()
@@ -808,5 +811,59 @@ class SettingsManager private constructor(private val context: Context) {
      */
     fun setWakeWordSensitivity(sensitivity: Float) {
         prefs.edit().putFloat(KEY_VOICE_WAKE_SENSITIVITY, sensitivity.coerceIn(0f, 1f)).apply()
+    }
+
+    // ==================== Notification Trigger Rules ====================
+
+    /**
+     * Gets all notification trigger rules from storage.
+     *
+     * @return List of notification trigger rules, empty list if none saved
+     */
+    fun getNotificationTriggerRules(): List<com.kevinluo.autoglm.notification.NotificationTriggerRule> {
+        val json = prefs.getString(KEY_NOTIFICATION_TRIGGER_RULES, null) ?: return emptyList()
+        return try {
+            val array = JSONArray(json)
+            val rules = mutableListOf<com.kevinluo.autoglm.notification.NotificationTriggerRule>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                rules.add(
+                    com.kevinluo.autoglm.notification.NotificationTriggerRule(
+                        id = obj.getString("id"),
+                        appLabel = obj.getString("appLabel"),
+                        packageName = obj.getString("packageName"),
+                        taskPrompt = obj.getString("taskPrompt"),
+                        isEnabled = obj.optBoolean("isEnabled", true),
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                    )
+                )
+            }
+            rules
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to parse notification trigger rules", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Saves all notification trigger rules to storage.
+     *
+     * @param rules The list of rules to persist
+     */
+    fun saveNotificationTriggerRules(rules: List<com.kevinluo.autoglm.notification.NotificationTriggerRule>) {
+        val array = JSONArray()
+        for (rule in rules) {
+            val obj = JSONObject().apply {
+                put("id", rule.id)
+                put("appLabel", rule.appLabel)
+                put("packageName", rule.packageName)
+                put("taskPrompt", rule.taskPrompt)
+                put("isEnabled", rule.isEnabled)
+                put("createdAt", rule.createdAt)
+            }
+            array.put(obj)
+        }
+        prefs.edit().putString(KEY_NOTIFICATION_TRIGGER_RULES, array.toString()).apply()
+        Logger.d(TAG, "Saved ${rules.size} notification trigger rules")
     }
 }

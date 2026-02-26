@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import com.kevinluo.autoglm.config.SystemPrompts
+import com.kevinluo.autoglm.notification.NotificationTriggerManager
 import com.kevinluo.autoglm.schedule.ScheduledTaskManager
 import com.kevinluo.autoglm.settings.SettingsManager
 import com.kevinluo.autoglm.task.TaskExecutionManager
@@ -52,6 +53,9 @@ class AutoGLMApplication : Application() {
 
         // Initialize TaskExecutionManager (after ComponentManager is available)
         TaskExecutionManager.initialize(this)
+
+        // Initialize NotificationTriggerManager to load persisted rules
+        NotificationTriggerManager.getInstance(this)
 
         // Initialize ScheduledTaskManager and restore scheduled tasks
         initializeScheduledTasks()

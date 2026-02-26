@@ -168,6 +168,16 @@
             android:foregroundServiceType="microphone"
             android:exported="false" />
 
+        <!-- Notification Listener Service for notification-triggered tasks -->
+        <service
+            android:name=".notification.AutoGLMNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Scheduled Task Receiver -->
         <receiver
             android:name=".schedule.ScheduledTaskReceiver"

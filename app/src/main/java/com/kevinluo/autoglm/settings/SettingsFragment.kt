@@ -117,6 +117,10 @@ class SettingsFragment : Fragment() {
     private var templatesAdapter: TaskTemplatesAdapter? = null
     private var taskTemplates: MutableList<TaskTemplate> = mutableListOf()
 
+    // Notification trigger views
+    private lateinit var tvNotificationTriggerStatus: TextView
+    private lateinit var btnManageNotificationTriggers: com.google.android.material.button.MaterialButton
+
     // Advanced settings views
     private lateinit var promptCnStatus: TextView
     private lateinit var promptEnStatus: TextView
@@ -196,6 +200,7 @@ class SettingsFragment : Fragment() {
         super.onResume()
         refreshPermissionStates()
         updateLogSizeDisplay()
+        updateNotificationTriggerStatus()
     }
 
     /**
@@ -258,6 +263,10 @@ class SettingsFragment : Fragment() {
                 onDeleteClick = { template -> showDeleteTemplateDialog(template) },
             )
         templatesRecyclerView.adapter = templatesAdapter
+
+        // Notification trigger
+        tvNotificationTriggerStatus = view.findViewById(R.id.tvNotificationTriggerStatus)
+        btnManageNotificationTriggers = view.findViewById(R.id.btnManageNotificationTriggers)
 
         // Advanced settings
         promptCnStatus = view.findViewById(R.id.promptCnStatus)
@@ -410,6 +419,7 @@ class SettingsFragment : Fragment() {
         btnAddTemplate.setOnClickListener { showAddTemplateDialog() }
         btnEditPromptCn.setOnClickListener { showEditPromptDialog("cn") }
         btnEditPromptEn.setOnClickListener { showEditPromptDialog("en") }
+        btnManageNotificationTriggers.setOnClickListener { showNotificationTriggerListDialog() }
         btnExportLogs.setOnClickListener { exportDebugLogs() }
         btnClearLogs.setOnClickListener { showClearLogsDialog() }
         btnVoiceModelAction.setOnClickListener { onVoiceModelActionClick() }
@@ -1092,6 +1102,46 @@ class SettingsFragment : Fragment() {
             } else {
                 getString(R.string.settings_system_prompt_default)
             }
+    }
+
+    // ==================== Notification Trigger ====================
+
+    private fun updateNotificationTriggerStatus() {
+        val ctx = requireContext()
+        if (!com.kevinluo.autoglm.notification.NotificationTriggerListDialog
+                .isNotificationListenerEnabled(ctx)
+        ) {
+            tvNotificationTriggerStatus.text =
+                getString(R.string.notification_trigger_status_no_permission)
+            return
+        }
+        val enabledCount = com.kevinluo.autoglm.notification.NotificationTriggerManager
+            .getInstance(ctx)
+            .getAllRules()
+            .count { it.isEnabled }
+        tvNotificationTriggerStatus.text = if (enabledCount == 0) {
+            getString(R.string.notification_trigger_status_none)
+        } else {
+            getString(R.string.notification_trigger_status_count, enabledCount)
+        }
+    }
+
+    private fun showNotificationTriggerListDialog() {
+        val ctx = requireContext()
+        com.kevinluo.autoglm.notification.NotificationTriggerListDialog(
+            context = ctx,
+            lifecycleOwner = viewLifecycleOwner,
+            onAddRule = { showNotificationTriggerEditDialog() },
+        ).show()
+    }
+
+    private fun showNotificationTriggerEditDialog() {
+        val ctx = requireContext()
+        com.kevinluo.autoglm.notification.NotificationTriggerEditDialog(
+            context = ctx,
+            lifecycleOwner = viewLifecycleOwner,
+            onRuleSaved = { updateNotificationTriggerStatus() },
+        ).show()
     }
 
     private fun showEditPromptDialog(language: String) {

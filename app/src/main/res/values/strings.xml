@@ -364,4 +364,28 @@
     <string name="schedule_tomorrow">明天</string>
     <string name="schedule_date_format">MM月dd日</string>
     <string name="schedule_time_format_hm">HH:mm</string>
+
+    <!-- Notification Trigger Rules -->
+    <string name="notification_trigger_title">通知触发任务</string>
+    <string name="notification_trigger_subtitle">接收指定 App 通知后自动执行任务</string>
+    <string name="notification_trigger_manage">管理</string>
+    <string name="notification_trigger_status_none">暂无规则</string>
+    <string name="notification_trigger_status_count">%d 条规则已启用</string>
+    <string name="notification_trigger_status_no_permission">未授权通知监听</string>
+    <string name="notification_trigger_permission_warning">需要授予通知使用权限才能监听通知</string>
+    <string name="notification_trigger_grant_permission">去授权</string>
+    <string name="notification_trigger_empty">暂无通知触发规则</string>
+    <string name="notification_trigger_add">新建通知触发规则</string>
+    <string name="notification_trigger_add_title">新建通知触发规则</string>
+    <string name="notification_trigger_select_app">选择监听的 App</string>
+    <string name="notification_trigger_task_prompt_hint">触发后执行的任务描述</string>
+    <string name="notification_trigger_prompt_helper">收到该 App 的通知后，将使用此描述自动启动任务</string>
+    <string name="notification_trigger_enabled">规则已启用</string>
+    <string name="notification_trigger_disabled">规则已暂停</string>
+    <string name="notification_trigger_saved">规则已保存</string>
+    <string name="notification_trigger_deleted">规则已删除</string>
+    <string name="notification_trigger_delete">删除规则</string>
+    <string name="notification_trigger_delete_confirm">确定要删除 %s 的通知触发规则吗？</string>
+    <string name="notification_trigger_error_select_app">请选择一个 App</string>
+    <string name="notification_trigger_error_empty_prompt">请填写任务描述</string>
 </resources>
