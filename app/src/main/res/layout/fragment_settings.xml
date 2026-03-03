@@ -847,7 +847,7 @@
                                 android:id="@+id/btnManageNotificationTriggers"
                                 style="@style/Widget.App.Button.Secondary"
                                 android:layout_width="wrap_content"
-                                android:layout_height="36dp"
+                                android:layout_height="48dp"
                                 android:text="@string/notification_trigger_manage"
                                 android:textSize="13sp" />
 
